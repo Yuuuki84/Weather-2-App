@@ -6,6 +6,20 @@
 // ===== APIキー =====
 const WEATHER_API_KEY = '8feafb00587ad2aae401173a0ab2d200';
 
+// ── AI機能（コメント・翻訳）の設定 ────────────────────────────────
+// 【無料で使う方法】
+//   1. https://aistudio.google.com でGemini APIキーを取得（無料・カード不要）
+//   2. https://workers.cloudflare.com でWorkerを作成してclouflare-worker.jsを貼り付け
+//   3. WorkerのURLを下記 GEMINI_WORKER_URL に設定
+//   4. GEMINI_WORKER_URL が設定されていればGeminiを使用、未設定時はAI機能をスキップ
+//
+// 【Anthropic APIを使う場合（有料）】
+//   ANTHROPIC_API_KEY に設定（GEMINI_WORKER_URLより優先）
+// ────────────────────────────────────────────────────
+const ANTHROPIC_API_KEY = '';           // Anthropic APIキー（有料・任意）
+const GEMINI_WORKER_URL = 'https://weathered-sea-1080.yuuuuki84.workers.dev';
+// ────────────────────────────────────────────────────
+
 // ── ニュースAPIキー設定 ──────────────────────────────
 // GNews (https://gnews.io) 無料プラン: 月100リクエスト
 // サインアップ後に取得したキーを下記に設定
@@ -521,6 +535,8 @@ async function fetchAIWeatherComment(data, unit) {
   const wrap = document.getElementById('ai-comment-wrap');
   if (!el || !wrap) return;
 
+  // AI設定が未設定なら非表示のまま
+  if (!ANTHROPIC_API_KEY && !GEMINI_WORKER_URL) return;
   wrap.style.display = 'block';
   el.innerHTML = `<span class="ai-typing">AIがコメントを生成中...</span>`;
 
@@ -540,23 +556,59 @@ ${rain ? `雨量: ${rain}mm/h` : ''}${snow ? `雪量: ${snow}mm/h` : ''}
 フレンドリーで具体的に。記号や絵文字を適度に使用してOK。`;
 
   try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    const text = await callAI(prompt, 300);
+    el.innerHTML = escHtml(text).replace(/\n/g, '<br>');
+  } catch(e) {
+    el.innerHTML = `<span style="color:var(--text2);font-size:12px;">⚠️ ${escHtml(String(e.message))}</span>`;
+  }
+}
+
+// ===== AI共通呼び出し（Anthropic / Gemini 自動切替） =====
+async function callAI(prompt, maxTokens = 500) {
+  // Anthropic優先
+  if (ANTHROPIC_API_KEY && ANTHROPIC_API_KEY !== 'YOUR_ANTHROPIC_API_KEY') {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 300,
+        model: 'claude-sonnet-4-6',
+        max_tokens: maxTokens,
         messages: [{ role: 'user', content: prompt }],
       }),
     });
-
-    if (!response.ok) throw new Error(`API error ${response.status}`);
-    const json = await response.json();
-    const text = json.content?.find(b => b.type === 'text')?.text || '';
-    el.innerHTML = escHtml(text).replace(/\n/g, '<br>');
-  } catch(e) {
-    el.innerHTML = `<span style="color:var(--text2);font-size:12px;">AIコメントを取得できませんでした。</span>`;
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      throw new Error(e?.error?.message || `Anthropic HTTP ${res.status}`);
+    }
+    const j = await res.json();
+    return j.content?.find(b => b.type === 'text')?.text || '';
   }
+
+  // Gemini（Cloudflare Workerプロキシ経由）
+  if (GEMINI_WORKER_URL) {
+    const res = await fetch(GEMINI_WORKER_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { maxOutputTokens: maxTokens },
+      }),
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      throw new Error(e?.error?.message || `Gemini HTTP ${res.status}`);
+    }
+    const j = await res.json();
+    return j.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  }
+
+  throw new Error('AIキーが未設定です。app.js の GEMINI_WORKER_URL または ANTHROPIC_API_KEY を設定してください。');
 }
 
 
@@ -639,8 +691,16 @@ async function getWeatherByGeo() {
 // breaking-news / world / nation / business / technology / entertainment / sports / science / health
 // ===== ok.surf Google News API（無料・無制限・CORS対応・登録不要） =====
 // https://ok.surf/
-// ok.surf のカテゴリ名マップ（大文字で送信）
-const OKSURF_SECTION_MAP = {
+// カテゴリ日本語ラベル
+const CATEGORY_LABEL = {
+  general: 'トップ', technology: 'テクノロジー', science: 'サイエンス',
+  sports: 'スポーツ', entertainment: 'エンタメ', health: 'ヘルス', business: 'ビジネス',
+};
+
+// ok.surf の正確なセクション名（起動時に /news-section-names で取得）
+let okSurfSectionNames = [];
+// フォールバック用マップ（APIから取得できなかった場合）
+const OKSURF_FALLBACK_MAP = {
   general:       'Top stories',
   technology:    'Technology',
   science:       'Science',
@@ -650,15 +710,37 @@ const OKSURF_SECTION_MAP = {
   business:      'Business',
 };
 
-// カテゴリ日本語ラベル
-const CATEGORY_LABEL = {
-  general: 'トップ', technology: 'テクノロジー', science: 'サイエンス',
-  sports: 'スポーツ', entertainment: 'エンタメ', health: 'ヘルス', business: 'ビジネス',
-};
+// 起動時にセクション名一覧を取得
+async function loadOkSurfSections() {
+  try {
+    const res = await fetch('https://ok.surf/api/v1/cors/news-section-names', {
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    // レスポンス: 文字列配列 ["Top stories","World","Technology",...]
+    if (Array.isArray(data) && data.length > 0) {
+      okSurfSectionNames = data;
+      console.log('[ok.surf] sections:', data);
+    }
+  } catch(e) {
+    console.warn('[ok.surf] section name fetch failed:', e.message);
+  }
+}
 
-// ニュースキャッシュ（10分）
+// カテゴリキー → ok.surf セクション名を解決
+function resolveSection(category) {
+  const fallback = OKSURF_FALLBACK_MAP[category] || 'Top stories';
+  if (!okSurfSectionNames.length) return fallback;
+  // 大文字小文字を無視して部分一致
+  const keyword = fallback.toLowerCase();
+  const found = okSurfSectionNames.find(s => s.toLowerCase().includes(keyword) || keyword.includes(s.toLowerCase()));
+  return found || okSurfSectionNames[0] || fallback;
+}
+
+// ニュースキャッシュ（15分）
 const newsCache = {};
-const CACHE_TTL = 10 * 60 * 1000;
+const CACHE_TTL = 15 * 60 * 1000;
 
 async function fetchOkSurf(section) {
   const cacheKey = section;
@@ -669,23 +751,29 @@ async function fetchOkSurf(section) {
     return newsCache[cacheKey].articles;
   }
 
-  // CORS対応エンドポイント /api/v1/cors/news-section を使用（POSTリクエスト）
+  // /api/v1/cors/news-section へ POST
   const res = await fetch('https://ok.surf/api/v1/cors/news-section', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'accept': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'accept': 'application/json',
+    },
     body: JSON.stringify({ sections: [section] }),
     signal: AbortSignal.timeout(15000),
   });
 
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '');
+    throw new Error(`HTTP ${res.status}${errText ? ': ' + errText.slice(0, 80) : ''}`);
+  }
+
   const data = await res.json();
 
-  // レスポンス形式: { "Top stories": [...], ... } または配列
+  // レスポンス形式: { "Technology": [...], ... }
   let rawList = [];
   if (Array.isArray(data)) {
     rawList = data;
-  } else if (typeof data === 'object') {
-    // セクション名をキーに持つオブジェクト
+  } else if (typeof data === 'object' && data !== null) {
     rawList = Object.values(data).flat();
   }
 
@@ -709,7 +797,7 @@ async function fetchOkSurf(section) {
 async function fetchAndRenderNews(category) {
   renderNewsSkeleton();
 
-  const section = OKSURF_SECTION_MAP[category] || 'Top stories';
+  const section = resolveSection(category);
   const label   = CATEGORY_LABEL[category] || category;
 
   try {
@@ -720,8 +808,9 @@ async function fetchAndRenderNews(category) {
     }
     showNewsMessage('📭', `「${label}」の記事が見つかりませんでした`, 'しばらく後にお試しください。');
   } catch(e) {
+    const msg = String(e.message || e);
     showNewsMessage('⚠️', 'ニュースの取得に失敗しました',
-      `エラー: ${String(e.message || e)}<br>ネットワーク接続をご確認ください。`);
+      `${msg}<br><small style="opacity:.7">ok.surf Google News API</small>`);
   }
 }
 
@@ -757,20 +846,22 @@ function renderNewsCards(articles, categoryLabel = '') {
     return;
   }
 
-  const featured = articles.slice(0, 2);
-  const rest     = articles.slice(2, 20); // 最大18枚
+  const displayed = articles.slice(0, 20);
+  const featured  = displayed.slice(0, 2);
+  const rest      = displayed.slice(2);
 
   const featuredHTML = `
     <div class="featured-news">
       ${featured.map(a => newsCardHTML(a, true, categoryLabel)).join('')}
     </div>`;
-
   const gridHTML = rest.length ? `
     <div class="news-grid">
       ${rest.map(a => newsCardHTML(a, false, categoryLabel)).join('')}
     </div>` : '';
 
   newsContainer.innerHTML = featuredHTML + gridHTML;
+
+  // クリックイベント
   newsContainer.querySelectorAll('.news-card').forEach(el => {
     el.addEventListener('click', () => {
       const href = el.dataset.url;
@@ -783,6 +874,60 @@ function renderNewsCards(articles, categoryLabel = '') {
       }
     });
   });
+
+  // 英語記事があればバックグラウンドで翻訳
+  const enArticles = displayed.filter(a => a.lang === 'en');
+  if (enArticles.length > 0) {
+    translateNewsTitles(enArticles);
+  }
+}
+
+// ニュースタイトル一括翻訳（Anthropic API）
+async function translateNewsTitles(articles) {
+  // 翻訳中バッジを表示
+  newsContainer.querySelectorAll('.news-card[data-lang="en"] .news-title').forEach(el => {
+    el.style.opacity = '0.6';
+  });
+
+  const titles = articles.map(a => a.title);
+  const prompt = `以下の英語ニュースタイトルを日本語に翻訳してください。
+番号付きリストで、元の番号のまま翻訳のみ返してください。余分な説明は不要です。
+${titles.map((t, i) => `${i+1}. ${t}`).join('\n')}`;
+
+  // AI設定が未設定ならスキップ
+  if (!ANTHROPIC_API_KEY && !GEMINI_WORKER_URL) {
+    newsContainer.querySelectorAll('.news-title').forEach(el => el.style.opacity = '1');
+    return;
+  }
+  try {
+    const text = await callAI(prompt, 1000);
+
+    // "1. タイトル\n2. タイトル..." をパース
+    const lines = text.split('\n').filter(l => /^\d+\./.test(l.trim()));
+    const translated = lines.map(l => l.replace(/^\d+\.\s*/, '').trim());
+
+    // DOMを更新
+    articles.forEach((a, i) => {
+      if (!translated[i]) return;
+      const card = newsContainer.querySelector(`.news-card[data-url="${CSS.escape(a.url)}"]`);
+      if (!card) return;
+      const titleEl = card.querySelector('.news-title');
+      if (titleEl) {
+        titleEl.textContent = translated[i];
+        titleEl.style.opacity = '1';
+      }
+      // ENバッジを「翻訳済」に変更
+      const badge = card.querySelector('.lang-badge');
+      if (badge) {
+        badge.textContent = '翻訳済';
+        badge.style.background = 'rgba(52,211,153,0.18)';
+        badge.style.color = '#34d399';
+      }
+    });
+  } catch(e) {
+    // 翻訳失敗時は元のタイトルのまま
+    newsContainer.querySelectorAll('.news-title').forEach(el => el.style.opacity = '1');
+  }
 }
 
 function newsCardHTML(a, featured, categoryLabel = '') {
@@ -790,15 +935,13 @@ function newsCardHTML(a, featured, categoryLabel = '') {
   const imgHtml = a.image
     ? `<img src="${escHtml(a.image)}" alt="" loading="lazy" onerror="this.parentElement.innerHTML='<div class=news-img-placeholder>📰</div>'">`
     : `<div class="news-img-placeholder">📰</div>`;
-  const langBadge = a.lang === 'en'
-    ? `<span style="font-size:10px;padding:2px 7px;border-radius:999px;background:rgba(99,102,241,0.18);color:var(--accent2);font-weight:700;margin-left:6px;">EN</span>`
-    : '';
+  // langBadgeは news-card内のspan.lang-badgeで管理
 
   return `
-    <div class="news-card${featured?' featured':''}" data-url="${escHtml(a.url)}" tabindex="0" role="link" aria-label="${escHtml(a.title)}">
+    <div class="news-card${featured?' featured':''}" data-url="${escHtml(a.url)}" data-lang="${a.lang||''}" tabindex="0" role="link" aria-label="${escHtml(a.title)}">
       <div class="news-img">${imgHtml}</div>
       <div class="news-body">
-        <div class="news-category">${escHtml(categoryLabel || a.category || '')}${langBadge}</div>
+        <div class="news-category">${escHtml(categoryLabel || a.category || '')}<span class="lang-badge" style="font-size:10px;padding:2px 7px;border-radius:999px;background:rgba(99,102,241,0.18);color:var(--accent2);font-weight:700;margin-left:6px;transition:all .3s;">${a.lang==='en'?'EN':''}</span></div>
         <div class="news-title">${escHtml(a.title)}</div>
         <div class="news-meta">
           <span class="news-source">
@@ -869,8 +1012,8 @@ newsTabs.querySelectorAll('.news-tab').forEach(tab => {
   // 履歴描画
   renderHistory();
 
-  // 初期ニュース
-  fetchAndRenderNews('general');
+  // セクション名を先取得してからニュース表示
+  loadOkSurfSections().then(() => fetchAndRenderNews('general'));
 
   // URLパラメータで自動検索
   const urlCity = new URL(location.href).searchParams.get('city');
