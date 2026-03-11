@@ -5,6 +5,7 @@
 
 // ===== APIキー =====
 const WEATHER_API_KEY = '8feafb00587ad2aae401173a0ab2d200';
+const GEMINI_API_KEY  = 'YOUR_GEMINI_API_KEY_HERE'; // Google AI Studio で取得: https://aistudio.google.com/
 
 // ===== 保存キー =====
 const LS = {
@@ -284,6 +285,9 @@ function renderWeather(data, unit) {
   generateAdvice(data, unit);
   showResult(true);
 
+  // Gemini AI アドバイス
+  renderGeminiAdvice(data, unit);
+
   // Luna & Elma カード（天気連動）
   const wxKey = (icon ? icon.slice(0,2) : '');
   const wxCls = WX_CLASS_MAP[wxKey] || 'wx-cloudy';
@@ -388,6 +392,95 @@ function renderAdvice(advices) {
     '</div>'
   ).join('');
   section.style.display = 'block';
+}
+
+// ===== Gemini AI アドバイス =====
+// 無料枠で利用可能なモデルを優先順に列挙
+const GEMINI_MODELS = [
+  'gemini-2.0-flash-lite',  // 無料枠あり・軽量
+  'gemini-2.0-flash',       // 無料枠あり（1500 req/日）
+  'gemini-2.0-flash-exp',   // 実験版フォールバック
+];
+function geminiUrl(model) {
+  return 'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + GEMINI_API_KEY;
+}
+
+async function fetchGeminiAdvice(data, unit) {
+  const toC = v => unit === 'imperial' && v != null ? Math.round((v - 32) * 5 / 9) : Math.round(v ?? 0);
+  const tempC   = toC(data.main?.temp);
+  const feelsC  = toC(data.main?.feels_like);
+  const city    = data.name ?? '不明';
+  const country = data.sys?.country ?? '';
+  const desc    = data.weather?.[0]?.description ?? '';
+  const humid   = data.main?.humidity ?? '—';
+  const wind    = data.wind?.speed ?? 0;
+  const clouds  = data.clouds?.all ?? 0;
+  const rain    = data.rain?.['1h'] ?? 0;
+  const snow    = data.snow?.['1h'] ?? 0;
+
+  const prompt =
+    `あなたは天気アプリの親しみやすいAIアシスタントです。以下の天気データをもとに、ユーザーへの役立つアドバイスを日本語で提供してください。
+
+【天気データ】
+都市: ${city}（${country}）
+天気: ${desc}
+気温: ${tempC}℃ / 体感: ${feelsC}℃
+湿度: ${humid}% / 風速: ${wind}m/s / 雲量: ${clouds}%${rain ? '\n雨量: ' + rain + 'mm/h' : ''}${snow ? '\n雪量: ' + snow + 'mm/h' : ''}
+
+【出力形式】
+今日の天気の特徴を1〜2文で述べ、外出・服装・健康管理のアドバイスをそれぞれ1文ずつ書いてください。最後に元気が出る一言コメントを添えてください。
+全体200〜280文字程度、親しみやすい丁寧な口調で、箇条書きは使わず自然な文章で書いてください。`;
+
+  const body = JSON.stringify({
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig: { temperature: 0.75, maxOutputTokens: 400 },
+  });
+
+  let lastErr;
+  for (const model of GEMINI_MODELS) {
+    const res = await fetch(geminiUrl(model), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body,
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => '');
+      // errBodyにAPIキーが含まれる可能性があるためURLは出力しない
+      console.error('[Gemini] model=' + model + ' HTTP ' + res.status);
+      lastErr = new Error('HTTP ' + res.status + ' (' + model + ') ' + errBody.slice(0, 120));
+      // 404 = モデル不存在、429 + limit:0 = 無料枠なし → どちらも次モデルを試す
+      const isRetryable = res.status === 404 || (res.status === 429 && errBody.includes('"limit": 0'));
+      if (!isRetryable) throw lastErr;
+      continue;
+    }
+    const json = await res.json();
+    const text = json.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!text) throw new Error('レスポンス空');
+    console.log('[Gemini] 成功 model=' + model);
+    return text.trim();
+  }
+  throw lastErr ?? new Error('全モデル失敗');
+}
+
+async function renderGeminiAdvice(data, unit) {
+  const section = document.getElementById('ai-section');
+  const body    = document.getElementById('ai-advice-body');
+  if (!section || !body) return;
+  if (!GEMINI_API_KEY || GEMINI_API_KEY === 'YOUR_GEMINI_API_KEY_HERE') return;
+  section.style.display = 'block';
+  body.innerHTML = '<div class="ai-loading-dots"><span></span><span></span><span></span></div>';
+  try {
+    const text = await fetchGeminiAdvice(data, unit);
+    body.innerHTML = '<div class="ai-text">' + escHtml(text) + '</div>';
+  } catch(e) {
+    console.error('[Gemini]', e);
+    const msg = String(e.message || '');
+    const display = msg.includes('429')
+      ? 'リクエストが多すぎます。少し待ってから再度検索してください。'
+      : 'AIアドバイスを取得できませんでした。';
+    body.innerHTML = '<div class="ai-error">' + display + '</div>';
+  }
 }
 
 // ===== Luna & Elma 🐩 ローカル写真ランダム表示 =====
