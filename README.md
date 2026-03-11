@@ -83,11 +83,11 @@
 <!-- AUTO-UPDATED:FILE_TREE -->
 ```
 Weather-2-App/
-├── index.html      # UI・スタイル（全CSS含む）
-├── app.js          # ロジック（天気・ニュース・Gemini AI・アドバイス）
+├── README.md      # このファイル
+├── app.js      # ロジック（天気・ニュース・Gemini AI・アドバイス）
+└── index.html      # UI・スタイル（全CSS含む）
 ├── .env            # APIキー（ローカル専用・GitHubには非公開）
-├── .gitignore      # .env を除外
-└── README.md       # このファイル
+└── .gitignore      # .env を除外
 ```
 <!-- /AUTO-UPDATED:FILE_TREE -->
 
