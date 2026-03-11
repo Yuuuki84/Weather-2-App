@@ -5,7 +5,7 @@
 
 // ===== APIキー =====
 const WEATHER_API_KEY = '8feafb00587ad2aae401173a0ab2d200';
-const GEMINI_API_KEY  = 'YOUR_GEMINI_API_KEY_HERE'; // Google AI Studio で取得: https://aistudio.google.com/
+const GEMINI_API_KEY  = 'AIzaSyDi24F0mflDutX-ZxcgdNKfq3gGNokOp4s'; // Google AI Studio で取得: https://aistudio.google.com/
 
 // ===== 保存キー =====
 const LS = {
