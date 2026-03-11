@@ -731,6 +731,88 @@
     @media (max-width: 560px) { .advice-grid { grid-template-columns: 1fr 1fr; } }
 
 
+    /* ===== LUNA & ELMA POODLE CARD ===== */
+    .poodle-card {
+      display: none;
+      margin-top: 16px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border2);
+      background: var(--surface);
+      overflow: hidden;
+      align-items: stretch;
+      gap: 0;
+      box-shadow: var(--shadow2);
+      transition: transform .2s;
+    }
+    .poodle-card:hover { transform: translateY(-2px); }
+    .poodle-img-wrap {
+      width: 200px;
+      min-width: 200px;
+      height: 200px;
+      overflow: hidden;
+      flex-shrink: 0;
+      background: var(--surface2);
+      position: relative;
+    }
+    .poodle-img-wrap img {
+      width: 100%; height: 100%;
+      object-fit: cover;
+      display: block;
+      transition: transform .4s ease;
+    }
+    .poodle-card:hover .poodle-img-wrap img { transform: scale(1.05); }
+    .poodle-skeleton {
+      width: 100%; height: 100%;
+      background: linear-gradient(90deg, var(--surface2) 25%, var(--border) 50%, var(--surface2) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.4s infinite;
+    }
+    @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+    .poodle-no-img {
+      width: 100%; height: 100%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 64px;
+    }
+    .poodle-body {
+      padding: 24px 28px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 10px;
+      flex: 1;
+    }
+    .poodle-names {
+      font-family: var(--font-display);
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: -0.01em;
+      background: linear-gradient(135deg, #f9a8d4, #c084fc, #818cf8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .poodle-names span {
+      font-weight: 300;
+      font-family: var(--font);
+      -webkit-text-fill-color: var(--text2);
+    }
+    .poodle-msg {
+      font-size: 15px;
+      font-weight: 500;
+      color: var(--text);
+      line-height: 1.6;
+    }
+    .poodle-credit {
+      font-size: 11px;
+      color: var(--text2);
+      margin-top: 4px;
+    }
+    .poodle-credit a { color: var(--accent2); text-decoration: none; }
+    @media (max-width: 560px) {
+      .poodle-card { flex-direction: column; }
+      .poodle-img-wrap { width: 100%; min-width: unset; height: 200px; }
+    }
+
   </style>
 </head>
 
@@ -874,6 +956,9 @@
       <div class="advice-section" id="advice-section" style="display:none;">
         <div class="advice-grid" id="advice-grid"></div>
       </div>
+
+      <!-- Luna & Elma 🐩 -->
+      <div class="poodle-card" id="poodle-card"></div>
     </div>
 
     <!-- News Section -->

@@ -283,6 +283,11 @@ function renderWeather(data, unit) {
 
   generateAdvice(data, unit);
   showResult(true);
+
+  // Luna & Elma カード（天気連動）
+  const wxKey = (icon ? icon.slice(0,2) : '');
+  const wxCls = WX_CLASS_MAP[wxKey] || 'wx-cloudy';
+  fetchPoodleCard(wxCls);
 }
 
 // ===== 天気アドバイス =====
@@ -383,6 +388,62 @@ function renderAdvice(advices) {
     '</div>'
   ).join('');
   section.style.display = 'block';
+}
+
+// ===== Luna & Elma 🐩 Dog CEO API =====
+// 天気に連動したメッセージマップ
+const POODLE_MESSAGES = {
+  'wx-clear':   ['お散歩日和だよ！今日も一緒に出かけよう 🌞', '晴れてるね！公園に行こうよ〜 🎾', 'いい天気！フリスビーしようよ！'],
+  'wx-rain':    ['雨だから今日はおうちで一緒にまったりしよう ☔', '外は雨…室内でおもちゃ遊びにしようか 🧸', 'びしょぬれになっちゃうから今日はおうちでゴロゴロ 🛋'],
+  'wx-snow':    ['雪だ！！はしゃいじゃう〜！⛄', '雪の日のお散歩もたのしいね、でも足が冷たいよ〜 🐾', 'ふわふわ雪！においが変わってる！'],
+  'wx-cloudy':  ['曇ってるね、涼しくてちょうどいいかも！', '今日は散歩しやすい気温かも 🐾', 'どんよりしてるけど一緒にいるから大丈夫！'],
+  'wx-thunder': ['雷こわい！そばにいてね…⚡', 'ゴロゴロって聞こえる…だっこして 🫂', '外はこわいから今日はずっとおうちにいよう'],
+};
+
+async function fetchPoodleCard(wxClass) {
+  const wrap = document.getElementById('poodle-card');
+  if (!wrap) return;
+
+  // メッセージをランダムに選択
+  const msgs = POODLE_MESSAGES[wxClass] || POODLE_MESSAGES['wx-cloudy'];
+  const msg  = msgs[Math.floor(Math.random() * msgs.length)];
+
+  // カードをローディング状態に
+  wrap.style.display = 'flex';
+  wrap.innerHTML =
+    '<div class="poodle-img-wrap"><div class="poodle-skeleton"></div></div>' +
+    '<div class="poodle-body">' +
+      '<div class="poodle-names">Luna <span>&</span> Elma</div>' +
+      '<div class="poodle-msg">' + msg + '</div>' +
+    '</div>';
+
+  try {
+    // Dog CEO API — トイプードル画像をランダム取得（無料・キー不要）
+    const res  = await fetch('https://dog.ceo/api/breed/poodle/toy/images/random', { signal: AbortSignal.timeout(8000) });
+    // toy サブブリードが存在しない場合はpoodle全般にフォールバック
+    const data = await res.json();
+    const imgUrl = (data.status === 'success') ? data.message : null;
+
+    const imgHtml = imgUrl
+      ? '<img src="' + imgUrl + '" alt="Luna & Elma" loading="lazy" onerror="this.src=\'https://dog.ceo/img/dog-api-logo.svg\'">'
+      : '<div class="poodle-no-img">🐩</div>';
+
+    wrap.innerHTML =
+      '<div class="poodle-img-wrap">' + imgHtml + '</div>' +
+      '<div class="poodle-body">' +
+        '<div class="poodle-names">Luna <span>&</span> Elma</div>' +
+        '<div class="poodle-msg">' + msg + '</div>' +
+        '<div class="poodle-credit">📸 Dog CEO API — <a href="https://dog.ceo/dog-api/" target="_blank" rel="noopener">dog.ceo</a></div>' +
+      '</div>';
+  } catch(e) {
+    // 失敗時は絵文字のみ表示
+    wrap.innerHTML =
+      '<div class="poodle-img-wrap"><div class="poodle-no-img">🐩</div></div>' +
+      '<div class="poodle-body">' +
+        '<div class="poodle-names">Luna <span>&</span> Elma</div>' +
+        '<div class="poodle-msg">' + msg + '</div>' +
+      '</div>';
+  }
 }
 
 // ===== 都市名で天気取得 =====
