@@ -17,7 +17,7 @@ const WEATHER_API_KEY = '8feafb00587ad2aae401173a0ab2d200';
 //   ANTHROPIC_API_KEY に設定（GEMINI_WORKER_URLより優先）
 // ────────────────────────────────────────────────────
 const ANTHROPIC_API_KEY = '';           // Anthropic APIキー（有料・任意）
-const GEMINI_WORKER_URL = 'https://weathered-sea-1080.yuuuuki84.workers.dev';
+const GEMINI_WORKER_URL = 'https://weathered-sea-1080.yuuuuuki84.workers.dev';
 // ────────────────────────────────────────────────────
 
 // ── ニュースAPIキー設定 ──────────────────────────────
