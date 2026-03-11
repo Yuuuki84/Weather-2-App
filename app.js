@@ -1,6 +1,6 @@
 // ===================================================
 //  Luna & Elma 天気 & ニュースアプリ  —  app.js
-//  天気: OpenWeatherMap  |  ニュース: ok.surf (Google News)
+//  天気: OpenWeatherMap  |  ニュース: GNews API（日本語）  |  犬の写真: Dog CEO API
 // ===================================================
 
 // ===== APIキー =====
@@ -502,72 +502,72 @@ async function getWeatherByGeo() {
   }, { enableHighAccuracy: false, timeout: 8000 });
 }
 
-// ===== ニュース（ok.surf Google News API） =====
+// ===== ニュース（GNews API — 日本語） =====
+const GNEWS_API_KEY = '3d3593ab59f140addd9f651b88503f90';
+
 const CATEGORY_LABEL = {
   general:'トップ', technology:'テクノロジー', science:'サイエンス',
   sports:'スポーツ', entertainment:'エンタメ', health:'ヘルス', business:'ビジネス',
 };
-const OKSURF_FALLBACK_MAP = {
-  general:'Top stories', technology:'Technology', science:'Science',
-  sports:'Sports', entertainment:'Entertainment', health:'Health', business:'Business',
+
+// GNews APIのカテゴリマップ
+const GNEWS_CATEGORY_MAP = {
+  general:'general', technology:'technology', science:'science',
+  sports:'sports', entertainment:'entertainment', health:'health', business:'business',
 };
-let okSurfSectionNames = [];
-
-async function loadOkSurfSections() {
-  try {
-    const res = await fetch('https://ok.surf/api/v1/cors/news-section-names', { signal: AbortSignal.timeout(8000) });
-    if (!res.ok) return;
-    const data = await res.json();
-    if (Array.isArray(data) && data.length > 0) okSurfSectionNames = data;
-  } catch(e) { console.warn('[ok.surf] section fetch failed:', e.message); }
-}
-
-function resolveSection(category) {
-  const fallback = OKSURF_FALLBACK_MAP[category] || 'Top stories';
-  if (!okSurfSectionNames.length) return fallback;
-  const keyword = fallback.toLowerCase();
-  const found = okSurfSectionNames.find(s => s.toLowerCase().includes(keyword) || keyword.includes(s.toLowerCase()));
-  return found || okSurfSectionNames[0] || fallback;
-}
 
 const newsCache = {};
 const CACHE_TTL = 15 * 60 * 1000;
 
-async function fetchOkSurf(section) {
+async function fetchGNews(category) {
+  const cacheKey = category;
   const now = Date.now();
-  if (newsCache[section] && (now - newsCache[section].ts) < CACHE_TTL) return newsCache[section].articles;
-  const res = await fetch('https://ok.surf/api/v1/cors/news-section', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'accept': 'application/json' },
-    body: JSON.stringify({ sections: [section] }),
-    signal: AbortSignal.timeout(15000),
-  });
+  if (newsCache[cacheKey] && (now - newsCache[cacheKey].ts) < CACHE_TTL) return newsCache[cacheKey].articles;
+
+  const topic = GNEWS_CATEGORY_MAP[category] || 'general';
+  const url = 'https://gnews.io/api/v4/top-headlines?category=' + topic +
+    '&lang=ja&country=jp&max=20&apikey=' + GNEWS_API_KEY;
+
+  const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
   if (!res.ok) {
     const errText = await res.text().catch(() => '');
     throw new Error('HTTP ' + res.status + (errText ? ': ' + errText.slice(0,80) : ''));
   }
   const data = await res.json();
-  const rawList = Array.isArray(data) ? data : Object.values(data).flat();
-  const articles = rawList.filter(a => a.title && a.link).map(a => ({
-    title: a.title, description: '', url: a.link,
-    image: a.og || '', source: a.source || '—',
-    sourceIcon: a.source_icon || '', publishedAt: '', lang: 'en',
+  if (data.errors) throw new Error(data.errors.join(', '));
+
+  const articles = (data.articles || []).map(a => ({
+    title:       a.title || '',
+    description: a.description || '',
+    url:         a.url || '',
+    image:       a.image || '',
+    source:      a.source?.name || '—',
+    sourceIcon:  '',
+    publishedAt: a.publishedAt || '',
+    lang:        'ja',
   }));
-  newsCache[section] = { ts: now, articles };
+
+  newsCache[cacheKey] = { ts: now, articles };
   return articles;
 }
 
 async function fetchAndRenderNews(category) {
   renderNewsSkeleton();
-  const section = resolveSection(category);
-  const label   = CATEGORY_LABEL[category] || category;
+  const label = CATEGORY_LABEL[category] || category;
   try {
-    const articles = await fetchOkSurf(section);
+    const articles = await fetchGNews(category);
     if (articles.length > 0) { renderNewsCards(articles, label); return; }
     showNewsMessage('📭', '「' + label + '」の記事が見つかりませんでした', 'しばらく後にお試しください。');
   } catch(e) {
-    showNewsMessage('⚠️', 'ニュースの取得に失敗しました',
-      String(e.message||e) + '<br><small style="opacity:.7">ok.surf Google News API</small>');
+    const msg = String(e.message || e);
+    // 無料プラン上限に達した場合の案内
+    if (msg.includes('403') || msg.toLowerCase().includes('quota') || msg.toLowerCase().includes('limit')) {
+      showNewsMessage('📋', 'GNews 本日の取得上限に達しました',
+        '無料プランは1日100件まで。明日リセットされます。<br><small style="opacity:.7">gnews.io</small>');
+    } else {
+      showNewsMessage('⚠️', 'ニュースの取得に失敗しました',
+        msg + '<br><small style="opacity:.7">GNews API (gnews.io)</small>');
+    }
   }
 }
 
@@ -659,7 +659,7 @@ newsTabs.querySelectorAll('.news-tab').forEach(tab => {
   const savedUnit = localStorage.getItem(LS.unit);
   if (savedUnit === 'metric' || savedUnit === 'imperial') applyUnit(savedUnit);
   renderHistory();
-  loadOkSurfSections().then(() => fetchAndRenderNews('general'));
+  fetchAndRenderNews('general');
   const urlCity = new URL(location.href).searchParams.get('city');
   if (urlCity) { cityInput.value = urlCity; getWeatherByCity(urlCity); }
 })();
