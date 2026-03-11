@@ -1,0 +1,74 @@
+name: README 自動更新
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'app.js'
+      - 'index.html'
+
+jobs:
+  update-readme:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: ファイル構成セクションを更新
+        run: |
+          # ファイル一覧を取得（隠しファイル除く主要ファイル）
+          FILES=$(ls -1 *.html *.js *.md 2>/dev/null | sort)
+
+          # ツリー文字列を生成
+          TREE="Weather-2-App/"
+          COUNT=$(echo "$FILES" | wc -l)
+          i=0
+          while IFS= read -r f; do
+            i=$((i+1))
+            if [ $i -eq $COUNT ]; then
+              PREFIX="└──"
+            else
+              PREFIX="├──"
+            fi
+            case "$f" in
+              index.html) DESC="# UI・スタイル（全CSS含む）" ;;
+              app.js)     DESC="# ロジック（天気・ニュース・Gemini AI・アドバイス）" ;;
+              README.md)  DESC="# このファイル" ;;
+              *)          DESC="" ;;
+            esac
+            TREE="$TREE
+          $PREFIX $f      $DESC"
+          done <<< "$FILES"
+
+          # .env と .gitignore を追加
+          TREE="$TREE
+          ├── .env            # APIキー（ローカル専用・GitHubには非公開）
+          └── .gitignore      # .env を除外"
+
+          # README の FILE_TREE セクションを置換
+          python3 - <<PYEOF
+          import re, pathlib
+          readme = pathlib.Path('README.md').read_text(encoding='utf-8')
+          tree = """${TREE}"""
+          block = f"<!-- AUTO-UPDATED:FILE_TREE -->\n\`\`\`\n{tree}\n\`\`\`\n<!-- /AUTO-UPDATED:FILE_TREE -->"
+          readme = re.sub(
+            r'<!-- AUTO-UPDATED:FILE_TREE -->.*?<!-- /AUTO-UPDATED:FILE_TREE -->',
+            block, readme, flags=re.DOTALL
+          )
+          pathlib.Path('README.md').write_text(readme, encoding='utf-8')
+          print('FILE_TREE updated')
+          PYEOF
+
+      - name: 変更があればコミット
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add README.md
+          if git diff --staged --quiet; then
+            echo "README に変更なし"
+          else
+            git commit -m "docs: README ファイル構成を自動更新 [skip ci]"
+            git push
+          fi
