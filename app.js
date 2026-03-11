@@ -390,8 +390,39 @@ function renderAdvice(advices) {
   section.style.display = 'block';
 }
 
-// ===== Luna & Elma 🐩 Dog CEO API =====
-// 天気に連動したメッセージマップ
+// ===== Luna & Elma 🐩 ローカル写真ランダム表示 =====
+const LUNA_ELMA_PHOTOS = [
+  'images/luna-elma-01.jpeg',
+  'images/luna-elma-02.jpeg',
+  'images/luna-elma-03.jpeg',
+  'images/luna-elma-04.jpeg',
+  'images/luna-elma-05.jpeg',
+  'images/luna-elma-06.jpeg',
+  'images/luna-elma-07.jpeg',
+  'images/luna-elma-08.jpeg',
+  'images/luna-elma-09.jpeg',
+  'images/luna-elma-10.jpeg',
+  'images/luna-elma-11.jpeg',
+  'images/luna-elma-12.jpeg',
+  'images/luna-elma-13.jpeg',
+  'images/luna-elma-14.jpeg',
+  'images/luna-elma-15.jpeg',
+  'images/luna-elma-16.jpeg',
+  'images/luna-elma-17.jpeg',
+  'images/luna-elma-18.jpeg',
+];
+
+// 前回と違う写真をランダムに選ぶ
+let lastPhotoIndex = -1;
+function pickPhoto() {
+  let idx;
+  do { idx = Math.floor(Math.random() * LUNA_ELMA_PHOTOS.length); }
+  while (idx === lastPhotoIndex && LUNA_ELMA_PHOTOS.length > 1);
+  lastPhotoIndex = idx;
+  return LUNA_ELMA_PHOTOS[idx];
+}
+
+// 天気に連動したメッセージ
 const POODLE_MESSAGES = {
   'wx-clear':   ['お散歩日和だよ！今日も一緒に出かけよう 🌞', '晴れてるね！公園に行こうよ〜 🎾', 'いい天気！フリスビーしようよ！'],
   'wx-rain':    ['雨だから今日はおうちで一緒にまったりしよう ☔', '外は雨…室内でおもちゃ遊びにしようか 🧸', 'びしょぬれになっちゃうから今日はおうちでゴロゴロ 🛋'],
@@ -400,50 +431,23 @@ const POODLE_MESSAGES = {
   'wx-thunder': ['雷こわい！そばにいてね…⚡', 'ゴロゴロって聞こえる…だっこして 🫂', '外はこわいから今日はずっとおうちにいよう'],
 };
 
-async function fetchPoodleCard(wxClass) {
+function fetchPoodleCard(wxClass) {
   const wrap = document.getElementById('poodle-card');
   if (!wrap) return;
 
-  // メッセージをランダムに選択
   const msgs = POODLE_MESSAGES[wxClass] || POODLE_MESSAGES['wx-cloudy'];
   const msg  = msgs[Math.floor(Math.random() * msgs.length)];
+  const photo = pickPhoto();
 
-  // カードをローディング状態に
   wrap.style.display = 'flex';
   wrap.innerHTML =
-    '<div class="poodle-img-wrap"><div class="poodle-skeleton"></div></div>' +
+    '<div class="poodle-img-wrap">' +
+      '<img src="' + photo + '" alt="Luna & Elma" loading="lazy">' +
+    '</div>' +
     '<div class="poodle-body">' +
       '<div class="poodle-names">Luna <span>&</span> Elma</div>' +
       '<div class="poodle-msg">' + msg + '</div>' +
     '</div>';
-
-  try {
-    // Dog CEO API — トイプードル画像をランダム取得（無料・キー不要）
-    const res  = await fetch('https://dog.ceo/api/breed/poodle/toy/images/random', { signal: AbortSignal.timeout(8000) });
-    // toy サブブリードが存在しない場合はpoodle全般にフォールバック
-    const data = await res.json();
-    const imgUrl = (data.status === 'success') ? data.message : null;
-
-    const imgHtml = imgUrl
-      ? '<img src="' + imgUrl + '" alt="Luna & Elma" loading="lazy" onerror="this.src=\'https://dog.ceo/img/dog-api-logo.svg\'">'
-      : '<div class="poodle-no-img">🐩</div>';
-
-    wrap.innerHTML =
-      '<div class="poodle-img-wrap">' + imgHtml + '</div>' +
-      '<div class="poodle-body">' +
-        '<div class="poodle-names">Luna <span>&</span> Elma</div>' +
-        '<div class="poodle-msg">' + msg + '</div>' +
-        '<div class="poodle-credit">📸 Dog CEO API — <a href="https://dog.ceo/dog-api/" target="_blank" rel="noopener">dog.ceo</a></div>' +
-      '</div>';
-  } catch(e) {
-    // 失敗時は絵文字のみ表示
-    wrap.innerHTML =
-      '<div class="poodle-img-wrap"><div class="poodle-no-img">🐩</div></div>' +
-      '<div class="poodle-body">' +
-        '<div class="poodle-names">Luna <span>&</span> Elma</div>' +
-        '<div class="poodle-msg">' + msg + '</div>' +
-      '</div>';
-  }
 }
 
 // ===== 都市名で天気取得 =====
