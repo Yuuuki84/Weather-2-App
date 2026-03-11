@@ -490,6 +490,7 @@ function generateAdvice(data, unit) {
   advices.push({ emoji: '💪', label: '体調・健康', badge: healthLabel, text: healthText, color: healthColor });
 
   renderAdvice(advices);
+  fetchAIWeatherComment(data, unit);
 }
 
 function renderAdvice(advices) {
@@ -508,6 +509,54 @@ function renderAdvice(advices) {
     </div>`).join('');
 
   section.style.display = 'block';
+}
+
+
+// ===== AI天気解説（Anthropic API） =====
+let lastWeatherData = null;
+let lastWeatherUnit = 'metric';
+
+async function fetchAIWeatherComment(data, unit) {
+  const el = document.getElementById('ai-comment-text');
+  const wrap = document.getElementById('ai-comment-wrap');
+  if (!el || !wrap) return;
+
+  wrap.style.display = 'block';
+  el.innerHTML = `<span class="ai-typing">AIがコメントを生成中...</span>`;
+
+  const temp    = data.main?.temp != null ? Math.round(data.main.temp) : '不明';
+  const unit_s  = unit === 'imperial' ? '℉' : '℃';
+  const desc    = data.weather?.[0]?.description ?? '不明';
+  const humid   = data.main?.humidity ?? '不明';
+  const wind    = data.wind?.speed ?? '不明';
+  const city    = data.name ?? '不明';
+  const month   = new Date().getMonth() + 1;
+  const rain    = data.rain?.['1h'];
+  const snow    = data.snow?.['1h'];
+
+  const prompt = `現在の天気情報をもとに、今日の生活アドバイスを日本語で150字以内でやさしくコメントしてください。
+天気: ${desc}、気温: ${temp}${unit_s}、湿度: ${humid}%、風速: ${wind}m/s、場所: ${city}、月: ${month}月
+${rain ? `雨量: ${rain}mm/h` : ''}${snow ? `雪量: ${snow}mm/h` : ''}
+フレンドリーで具体的に。記号や絵文字を適度に使用してOK。`;
+
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 300,
+        messages: [{ role: 'user', content: prompt }],
+      }),
+    });
+
+    if (!response.ok) throw new Error(`API error ${response.status}`);
+    const json = await response.json();
+    const text = json.content?.find(b => b.type === 'text')?.text || '';
+    el.innerHTML = escHtml(text).replace(/\n/g, '<br>');
+  } catch(e) {
+    el.innerHTML = `<span style="color:var(--text2);font-size:12px;">AIコメントを取得できませんでした。</span>`;
+  }
 }
 
 
@@ -546,7 +595,7 @@ async function getWeatherByCity(cityRaw) {
     setShareLink(city);
 
     // 天気に関連したニュースも同時に更新
-    fetchAndRenderNews(currentCategory, city);
+    fetchAndRenderNews(currentCategory);
 
   } catch(e) {
     if (String(e).includes('Abort')) showError('通信がタイムアウトしました。ネットワークをご確認ください。');
@@ -588,14 +637,17 @@ async function getWeatherByGeo() {
 // ===== ニュース取得 =====
 // GNews 有効トピック一覧（公式ドキュメント準拠）
 // breaking-news / world / nation / business / technology / entertainment / sports / science / health
-const GNEWS_TOPIC_MAP = {
-  general:       'general',
-  technology:    'technology',
-  science:       'science',
-  sports:        'sports',
-  entertainment: 'entertainment',
-  health:        'health',
-  business:      'business',
+// ===== ok.surf Google News API（無料・無制限・CORS対応・登録不要） =====
+// https://ok.surf/
+// ok.surf のカテゴリ名マップ（大文字で送信）
+const OKSURF_SECTION_MAP = {
+  general:       'Top stories',
+  technology:    'Technology',
+  science:       'Science',
+  sports:        'Sports',
+  entertainment: 'Entertainment',
+  health:        'Health',
+  business:      'Business',
 };
 
 // カテゴリ日本語ラベル
@@ -604,68 +656,81 @@ const CATEGORY_LABEL = {
   sports: 'スポーツ', entertainment: 'エンタメ', health: 'ヘルス', business: 'ビジネス',
 };
 
-// GNews から ja + en 両方を並行取得してマージ（記事数を稼ぐ）
-async function fetchGNews(topic, cityHint, maxEach = 10) {
-  const token = GNEWS_API_KEY;
+// ニュースキャッシュ（10分）
+const newsCache = {};
+const CACHE_TTL = 10 * 60 * 1000;
 
-  // 公式ドキュメント準拠URL: category= / country= / apikey=
-  // 日本語(ja/jp) と 英語(en) を並列取得してマージ
-  const buildJa = (q) => q
-    ? `https://gnews.io/api/v4/search?q=${encodeURIComponent(q)}&lang=ja&country=jp&max=${maxEach}&sortby=publishedAt&apikey=${token}`
-    : `https://gnews.io/api/v4/top-headlines?category=${topic}&lang=ja&country=jp&max=${maxEach}&apikey=${token}`;
+async function fetchOkSurf(section) {
+  const cacheKey = section;
+  const now = Date.now();
 
-  const buildEn = (q) => q
-    ? `https://gnews.io/api/v4/search?q=${encodeURIComponent(q)}&lang=en&max=${maxEach}&sortby=publishedAt&apikey=${token}`
-    : `https://gnews.io/api/v4/top-headlines?category=${topic}&lang=en&max=${maxEach}&apikey=${token}`;
+  // キャッシュヒット
+  if (newsCache[cacheKey] && (now - newsCache[cacheKey].ts) < CACHE_TTL) {
+    return newsCache[cacheKey].articles;
+  }
 
-  const [jaRes, enRes] = await Promise.allSettled([
-    fetchJson(buildJa(cityHint), 15000),
-    fetchJson(buildEn(cityHint), 15000),
-  ]);
+  // CORS対応エンドポイント /api/v1/cors/news-section を使用（POSTリクエスト）
+  const res = await fetch('https://ok.surf/api/v1/cors/news-section', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'accept': 'application/json' },
+    body: JSON.stringify({ sections: [section] }),
+    signal: AbortSignal.timeout(15000),
+  });
 
-  const toArticles = (res, lang) => {
-    if (res.status !== 'fulfilled') return [];
-    const r = res.value;
-    if (!r.ok || !Array.isArray(r.data?.articles) || !r.data.articles.length) return [];
-    return r.data.articles
-      .filter(a => a.title && a.url)
-      .map(a => ({
-        title:       a.title,
-        description: a.description || '',
-        url:         a.url,
-        image:       a.image || '',
-        source:      a.source?.name ?? '—',
-        publishedAt: a.publishedAt || '',
-        lang,
-      }));
-  };
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
 
-  const ja = toArticles(jaRes, 'ja');
-  const en = toArticles(enRes, 'en');
-  const seen = new Set(ja.map(a => a.url));
-  return [...ja, ...en.filter(a => !seen.has(a.url))];
+  // レスポンス形式: { "Top stories": [...], ... } または配列
+  let rawList = [];
+  if (Array.isArray(data)) {
+    rawList = data;
+  } else if (typeof data === 'object') {
+    // セクション名をキーに持つオブジェクト
+    rawList = Object.values(data).flat();
+  }
+
+  const articles = rawList
+    .filter(a => a.title && a.link)
+    .map(a => ({
+      title:       a.title,
+      description: '',
+      url:         a.link,
+      image:       a.og || '',
+      source:      a.source || '—',
+      sourceIcon:  a.source_icon || '',
+      publishedAt: '',
+      lang:        'en',
+    }));
+
+  newsCache[cacheKey] = { ts: now, articles };
+  return articles;
 }
 
-async function fetchAndRenderNews(category, cityHint = '') {
+async function fetchAndRenderNews(category) {
   renderNewsSkeleton();
 
-  const topic = GNEWS_TOPIC_MAP[category] || 'breaking-news';
-  const label = CATEGORY_LABEL[category] || category;
+  const section = OKSURF_SECTION_MAP[category] || 'Top stories';
+  const label   = CATEGORY_LABEL[category] || category;
 
   try {
-    const articles = await fetchGNews(topic, cityHint, 10);
+    const articles = await fetchOkSurf(section);
     if (articles.length > 0) {
       renderNewsCards(articles, label);
       return;
     }
-  } catch { /* fallthrough */ }
+    showNewsMessage('📭', `「${label}」の記事が見つかりませんでした`, 'しばらく後にお試しください。');
+  } catch(e) {
+    showNewsMessage('⚠️', 'ニュースの取得に失敗しました',
+      `エラー: ${String(e.message || e)}<br>ネットワーク接続をご確認ください。`);
+  }
+}
 
-  // 記事ゼロの場合のみメッセージ表示（デモ撤廃）
+function showNewsMessage(icon, title, body) {
   newsContainer.innerHTML = `
-    <div style="padding:48px;text-align:center;color:var(--text2);line-height:2;">
-      <div style="font-size:32px;margin-bottom:12px;">📭</div>
-      <div style="font-weight:700;font-size:16px;color:var(--text);">「${label}」の記事が見つかりませんでした</div>
-      <div style="font-size:13px;margin-top:8px;">しばらく時間をおいて再度お試しください。</div>
+    <div style="padding:48px 20px;text-align:center;color:var(--text2);line-height:2;">
+      <div style="font-size:36px;margin-bottom:12px;">${icon}</div>
+      <div style="font-weight:700;font-size:16px;color:var(--text);margin-bottom:8px;">${title}</div>
+      <div style="font-size:13px;">${body}</div>
     </div>`;
 }
 
@@ -736,7 +801,9 @@ function newsCardHTML(a, featured, categoryLabel = '') {
         <div class="news-category">${escHtml(categoryLabel || a.category || '')}${langBadge}</div>
         <div class="news-title">${escHtml(a.title)}</div>
         <div class="news-meta">
-          <span class="news-source">📡 ${escHtml(a.source)}</span>
+          <span class="news-source">
+            ${a.sourceIcon ? `<img src="${escHtml(a.sourceIcon)}" alt="" style="width:14px;height:14px;border-radius:3px;object-fit:cover;vertical-align:middle;margin-right:4px;">` : '📡 '}${escHtml(a.source)}
+          </span>
           <span>${timeStr}</span>
         </div>
       </div>
