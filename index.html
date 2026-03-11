@@ -731,55 +731,6 @@
     @media (max-width: 560px) { .advice-grid { grid-template-columns: 1fr 1fr; } }
 
 
-    /* ===== AI WEATHER COMMENT ===== */
-    .ai-comment-wrap {
-      display: none;
-      margin-top: 16px;
-      padding: 18px 22px;
-      border-radius: var(--radius2);
-      background: linear-gradient(135deg, rgba(99,102,241,0.10), rgba(129,140,248,0.06));
-      border: 1px solid rgba(99,102,241,0.22);
-      position: relative;
-      overflow: hidden;
-    }
-    .ai-comment-wrap::before {
-      content: '';
-      position: absolute;
-      top: 0; left: 0;
-      width: 3px; height: 100%;
-      background: linear-gradient(180deg, var(--accent), var(--accent2));
-      border-radius: 3px 0 0 3px;
-    }
-    .ai-comment-header {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 10px;
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: .07em;
-      text-transform: uppercase;
-      color: var(--accent2);
-    }
-    .ai-comment-header .ai-badge {
-      background: linear-gradient(135deg, var(--accent), var(--accent2));
-      color: white;
-      padding: 2px 8px;
-      border-radius: 999px;
-      font-size: 10px;
-    }
-    #ai-comment-text {
-      font-size: 14px;
-      line-height: 1.75;
-      color: var(--text);
-      font-weight: 400;
-    }
-    .ai-typing {
-      color: var(--text2);
-      font-style: italic;
-      animation: pulse 1.2s ease infinite;
-    }
-
   </style>
 </head>
 
@@ -919,14 +870,6 @@
       </div>
 
 
-      <!-- AI Weather Comment -->
-      <div class="ai-comment-wrap" id="ai-comment-wrap">
-        <div class="ai-comment-header">
-          <span class="ai-badge">AI</span>
-          今日の天気アドバイス
-        </div>
-        <div id="ai-comment-text"></div>
-      </div>
       <!-- Weather Advice -->
       <div class="advice-section" id="advice-section" style="display:none;">
         <div class="advice-grid" id="advice-grid"></div>
