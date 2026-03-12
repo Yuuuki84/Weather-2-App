@@ -1,0 +1,45 @@
+name: GitHub Pages デプロイ
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: config.js を Secrets から生成
+        env:
+          WEATHER_API_KEY: ${{ secrets.WEATHER_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GNEWS_API_KEY: ${{ secrets.GNEWS_API_KEY }}
+        run: |
+          printf '// このファイルはデプロイ時に自動生成されます\nconst WEATHER_API_KEY = "%s";\nconst GEMINI_API_KEY  = "%s";\nconst GNEWS_API_KEY   = "%s";\n' \
+            "$WEATHER_API_KEY" "$GEMINI_API_KEY" "$GNEWS_API_KEY" > config.js
+
+      - name: GitHub Pages の設定
+        uses: actions/configure-pages@v4
+
+      - name: アーティファクトとしてアップロード
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '.'
+
+      - name: GitHub Pages にデプロイ
+        id: deployment
+        uses: actions/deploy-pages@v4
