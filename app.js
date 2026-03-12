@@ -4,8 +4,8 @@
 // ===================================================
 
 // ===== APIキー =====
-const WEATHER_API_KEY = '8feafb00587ad2aae401173a0ab2d200';
-const GEMINI_API_KEY  = 'AIzaSyDi24F0mflDutX-ZxcgdNKfq3gGNokOp4s'; // Google AI Studio で取得: https://aistudio.google.com/
+// キーは config.js で定義されています（.gitignore により非公開）
+// WEATHER_API_KEY / GEMINI_API_KEY / GNEWS_API_KEY
 
 // ===== 保存キー =====
 const LS = {
@@ -600,7 +600,7 @@ async function getWeatherByGeo() {
 }
 
 // ===== ニュース（GNews API — 日本語） =====
-const GNEWS_API_KEY = '3d3593ab59f140addd9f651b88503f90';
+// GNEWS_API_KEY は config.js で定義
 
 const CATEGORY_LABEL = {
   general:'トップ', technology:'テクノロジー', science:'サイエンス',
@@ -622,8 +622,9 @@ async function fetchGNews(category) {
   if (newsCache[cacheKey] && (now - newsCache[cacheKey].ts) < CACHE_TTL) return newsCache[cacheKey].articles;
 
   const topic = GNEWS_CATEGORY_MAP[category] || 'general';
-  const url = 'https://gnews.io/api/v4/top-headlines?category=' + topic +
+  const gnewsUrl = 'https://gnews.io/api/v4/top-headlines?category=' + topic +
     '&lang=ja&country=jp&max=20&apikey=' + GNEWS_API_KEY;
+  const url = 'https://corsproxy.io/?' + encodeURIComponent(gnewsUrl);
 
   const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
   if (!res.ok) {
