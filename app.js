@@ -1082,19 +1082,14 @@ async function fetchGNews(category) {
   const now = Date.now();
   if (newsCache[category] && (now - newsCache[category].ts) < CACHE_TTL) return newsCache[category].articles;
 
-  if (!GNEWS_API_KEY || GNEWS_API_KEY === 'YOUR_GNEWS_API_KEY') throw new Error('APIキー未設定');
+  if (!CHAT_API_URL || CHAT_API_URL === 'YOUR_CHAT_WORKER_URL') throw new Error('Worker URL未設定');
 
-  let apiUrl;
-  if (category === 'pet') {
-    apiUrl = 'https://gnews.io/api/v4/search?q=%E3%83%9A%E3%83%83%E3%83%88+%E7%8A%AC+%E7%8C%AB&lang=ja&country=jp&max=10&token=' + GNEWS_API_KEY;
-  } else {
-    const cat = GNEWS_CATEGORY[category] || 'general';
-    apiUrl = 'https://gnews.io/api/v4/top-headlines?category=' + cat + '&lang=ja&country=jp&max=10&token=' + GNEWS_API_KEY;
-  }
-
-  const res = await fetch(apiUrl, { signal: timeoutSignal(20000) });
+  const res = await fetch(CHAT_API_URL + '/api/news?category=' + category, {
+    signal: timeoutSignal(20000),
+  });
   if (!res.ok) throw new Error('HTTP ' + res.status);
   const data = await res.json();
+  if (data.error) throw new Error(data.error);
   if (!Array.isArray(data.articles)) throw new Error(data.errors?.[0] || 'データ取得失敗');
 
   const articles = data.articles.map(item => ({
