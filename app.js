@@ -740,9 +740,10 @@ function renderAdvice(advices) {
 // ===== Gemini AI アドバイス =====
 // 無料枠で利用可能なモデルを優先順に列挙
 const GEMINI_MODELS = [
-  'gemini-2.0-flash-lite',  // 無料枠あり・軽量
+  'gemini-2.0-flash-lite',  // 無料枠あり・軽量（優先）
   'gemini-2.0-flash',       // 無料枠あり（1500 req/日）
-  'gemini-2.0-flash-exp',   // 実験版フォールバック
+  'gemini-1.5-flash',       // 安定版フォールバック
+  'gemini-1.5-flash-8b',    // 軽量安定版フォールバック
 ];
 function geminiUrl(model) {
   return 'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + GEMINI_API_KEY;
