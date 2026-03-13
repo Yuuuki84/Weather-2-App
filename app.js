@@ -607,13 +607,13 @@ const CATEGORY_LABEL = {
 };
 
 const RSS_FEEDS = {
-  general:       'https://www3.nhk.or.jp/rss/news/cat0.xml',  // 主要ニュース
-  technology:    'https://www3.nhk.or.jp/rss/news/cat3.xml',  // 科学・文化
-  science:       'https://www3.nhk.or.jp/rss/news/cat3.xml',  // 科学・文化
-  sports:        'https://www3.nhk.or.jp/rss/news/cat7.xml',  // スポーツ
-  entertainment: 'https://www3.nhk.or.jp/rss/news/cat0.xml',  // 主要（エンタメ枠）
-  health:        'https://www3.nhk.or.jp/rss/news/cat1.xml',  // 社会
-  business:      'https://www3.nhk.or.jp/rss/news/cat4.xml',  // 経済
+  general:       'https://news.yahoo.co.jp/rss/topics/domestic.xml',
+  technology:    'https://news.yahoo.co.jp/rss/topics/it.xml',
+  science:       'https://news.yahoo.co.jp/rss/topics/science.xml',
+  sports:        'https://news.yahoo.co.jp/rss/topics/sports.xml',
+  entertainment: 'https://news.yahoo.co.jp/rss/topics/entertainment.xml',
+  health:        'https://news.yahoo.co.jp/rss/topics/life.xml',
+  business:      'https://news.yahoo.co.jp/rss/topics/business.xml',
 };
 
 const newsCache = {};
@@ -635,13 +635,15 @@ async function fetchRSSNews(category) {
   const items = Array.from(xml.querySelectorAll('item'));
   if (!items.length) throw new Error('記事が見つかりませんでした');
 
-  const feedTitle = xml.querySelector('channel > title')?.textContent || 'NHK ニュース';
+  const feedTitle = xml.querySelector('channel > title')?.textContent || 'Yahoo! Japan ニュース';
 
   const articles = items.slice(0, 20).map(item => ({
     title:       item.querySelector('title')?.textContent?.trim() || '',
     description: item.querySelector('description')?.textContent?.replace(/<[^>]*>/g, '').trim() || '',
     url:         item.querySelector('link')?.textContent?.trim() || item.querySelector('guid')?.textContent?.trim() || '',
-    image:       item.querySelector('enclosure')?.getAttribute('url') || '',
+    image:       item.getElementsByTagName('media:content')[0]?.getAttribute('url') ||
+                 item.getElementsByTagName('media:thumbnail')[0]?.getAttribute('url') ||
+                 item.querySelector('enclosure')?.getAttribute('url') || '',
     source:      feedTitle,
     sourceIcon:  '',
     publishedAt: item.querySelector('pubDate')?.textContent || '',
@@ -661,7 +663,7 @@ async function fetchAndRenderNews(category) {
     showNewsMessage('📭', '「' + label + '」の記事が見つかりませんでした', 'しばらく後にお試しください。');
   } catch(e) {
     showNewsMessage('⚠️', 'ニュースの取得に失敗しました',
-      String(e.message || e) + '<br><small style="opacity:.7">NHK ニュース (RSS)</small>');
+      String(e.message || e) + '<br><small style="opacity:.7">Yahoo! Japan ニュース (RSS)</small>');
   }
 }
 
