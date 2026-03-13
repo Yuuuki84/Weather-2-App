@@ -902,7 +902,7 @@ async function sendChatMessage() {
         city:    chatWeatherCtx?.city,
         weather: chatWeatherCtx?.weather,
       }),
-      signal: timeoutSignal(20000),
+      signal: timeoutSignal(45000),
     });
     const json = await res.json();
     if (!res.ok) throw new Error(json.error || 'HTTP ' + res.status);
