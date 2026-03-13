@@ -615,7 +615,7 @@ const RSS_FEEDS = {
   entertainment: 'https://www3.nhk.or.jp/rss/news/cat0.xml',  // 主要
   health:        'https://www3.nhk.or.jp/rss/news/cat1.xml',  // 社会
   business:      'https://www3.nhk.or.jp/rss/news/cat4.xml',  // 経済
-  pet:           'https://petomorrow.jp/feed',                // ペット（petomorrow）
+  pet:           'https://news.google.com/rss/search?q=%E3%83%9A%E3%83%83%E3%83%88+%E7%8A%AC+%E7%8C%AB&hl=ja&gl=JP&ceid=JP:ja', // ペット（Google News）
 };
 
 const newsCache = {};
