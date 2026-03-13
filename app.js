@@ -718,8 +718,8 @@ function renderWeather(data, unit) {
   updateFavBtn(currentCity);
   checkWeatherAlert(data, unit);
 
-  // Gemini AI アドバイス
-  renderGeminiAdvice(data, unit);
+  // AI チャット
+  initChatSection(data, unit);
 
   // Luna & Elma カード（天気連動）
   const wxKey = (icon ? icon.slice(0,2) : '');
@@ -827,146 +827,107 @@ function renderAdvice(advices) {
   section.style.display = 'block';
 }
 
-// ===== Gemini AI アドバイス =====
-// 無料枠で利用可能なモデルを優先順に列挙（404確認済みモデルは除外）
-const GEMINI_MODELS = [
-  'gemini-2.0-flash-lite',  // 無料枠あり・軽量（優先）
-  'gemini-2.0-flash',       // 無料枠あり（1500 req/日）
-];
-function geminiUrl(model) {
-  return 'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + GEMINI_API_KEY;
-}
+// ===== AI チャット =====
+let chatHistory = [];
+let chatWeatherCtx = null;
+let chatListenersAttached = false;
 
-// ===== Gemini アドバイスキャッシュ（8時/12時/16時/20時スロット） =====
-function geminiTimeSlot() {
-  const h = new Date().getHours();
-  if (h < 8)  return '00'; // 深夜〜早朝（前日20時スロット扱い）
-  if (h < 12) return '08';
-  if (h < 16) return '12';
-  if (h < 20) return '16';
-  return '20';
-}
-function geminiCacheKey(cityName) {
-  const d = new Date();
-  const date = d.getFullYear() + '-' +
-    String(d.getMonth() + 1).padStart(2, '0') + '-' +
-    String(d.getDate()).padStart(2, '0');
-  return 'gemini_advice_' + cityName + '_' + date + '_' + geminiTimeSlot();
-}
-function getGeminiCache(cityName) {
-  try { return localStorage.getItem(geminiCacheKey(cityName)) || null; }
-  catch { return null; }
-}
-// 当スロット以外も含む古いキャッシュを検索（429フォールバック用）
-function getGeminiStaleCache(cityName) {
-  try {
-    const prefix = 'gemini_advice_' + cityName + '_';
-    const key = Object.keys(localStorage).find(k => k.startsWith(prefix));
-    return key ? localStorage.getItem(key) : null;
-  } catch { return null; }
-}
-function setGeminiCache(cityName, text) {
-  try {
-    // 古いキャッシュを削除（gemini_advice_ プレフィックスのみ）
-    Object.keys(localStorage)
-      .filter(k => k.startsWith('gemini_advice_') && k !== geminiCacheKey(cityName))
-      .forEach(k => localStorage.removeItem(k));
-    localStorage.setItem(geminiCacheKey(cityName), text);
-  } catch { /* localStorage 容量不足時は無視 */ }
-}
+function initChatSection(data, unit) {
+  const section = document.getElementById('ai-section');
+  if (!section) return;
 
-async function fetchGeminiAdvice(data, unit) {
+  // 天気コンテキストを保存
   const toC = v => unit === 'imperial' && v != null ? Math.round((v - 32) * 5 / 9) : Math.round(v ?? 0);
-  const tempC   = toC(data.main?.temp);
-  const feelsC  = toC(data.main?.feels_like);
-  const city    = data.name ?? '不明';
-  const country = data.sys?.country ?? '';
-  const desc    = data.weather?.[0]?.description ?? '';
-  const humid   = data.main?.humidity ?? '—';
-  const wind    = data.wind?.speed ?? 0;
-  const clouds  = data.clouds?.all ?? 0;
-  const rain    = data.rain?.['1h'] ?? 0;
-  const snow    = data.snow?.['1h'] ?? 0;
+  chatWeatherCtx = {
+    city: data.name ?? '',
+    weather: {
+      desc:   data.weather?.[0]?.description ?? '',
+      temp:   toC(data.main?.temp),
+      feels:  toC(data.main?.feels_like),
+      humid:  data.main?.humidity ?? 0,
+      wind:   data.wind?.speed ?? 0,
+    },
+  };
 
-  // キャッシュ確認（同一都市・同一スロット内は API を叩かない）
-  const cached = getGeminiCache(city);
-  if (cached) {
-    console.log('[Gemini] キャッシュ使用 slot=' + geminiTimeSlot() + ' city=' + city);
-    return { text: cached, stale: false };
+  section.style.display = 'block';
+
+  if (!chatListenersAttached) {
+    chatListenersAttached = true;
+    const sendBtn = document.getElementById('chat-send-btn');
+    const input   = document.getElementById('chat-input');
+    if (sendBtn) sendBtn.addEventListener('click', sendChatMessage);
+    if (input)   input.addEventListener('keydown', e => { if (e.key === 'Enter') sendChatMessage(); });
+  }
+}
+
+function appendChatBubble(role, text, loading = false) {
+  const container = document.getElementById('chat-messages');
+  if (!container) return null;
+  const div = document.createElement('div');
+  div.className = 'chat-bubble ' + role + (loading ? ' loading' : '');
+  if (loading) {
+    div.innerHTML = '<span></span><span></span><span></span>';
+  } else {
+    div.textContent = text;
+  }
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+  return div;
+}
+
+async function sendChatMessage() {
+  const input   = document.getElementById('chat-input');
+  const sendBtn = document.getElementById('chat-send-btn');
+  if (!input) return;
+  const message = input.value.trim();
+  if (!message) return;
+
+  if (!CHAT_API_URL || CHAT_API_URL === 'YOUR_CHAT_WORKER_URL') {
+    appendChatBubble('ai', 'チャット機能はまだ設定されていません。CHAT_API_URL を config.js に設定してください。');
+    return;
   }
 
-  const prompt =
-    `あなたは天気アプリの親しみやすいAIアシスタントです。以下の天気データをもとに、ユーザーへの役立つアドバイスを日本語で提供してください。
+  input.value = '';
+  if (sendBtn) sendBtn.disabled = true;
+  appendChatBubble('user', message);
+  const loadingBubble = appendChatBubble('ai', '', true);
 
-【天気データ】
-都市: ${city}（${country}）
-天気: ${desc}
-気温: ${tempC}℃ / 体感: ${feelsC}℃
-湿度: ${humid}% / 風速: ${wind}m/s / 雲量: ${clouds}%${rain ? '\n雨量: ' + rain + 'mm/h' : ''}${snow ? '\n雪量: ' + snow + 'mm/h' : ''}
-
-【出力形式】
-今日の天気の特徴を1〜2文で述べ、外出・服装・健康管理のアドバイスをそれぞれ1文ずつ書いてください。最後に元気が出る一言コメントを添えてください。
-全体200〜280文字程度、親しみやすい丁寧な口調で、箇条書きは使わず自然な文章で書いてください。`;
-
-  const body = JSON.stringify({
-    contents: [{ parts: [{ text: prompt }] }],
-    generationConfig: { temperature: 0.75, maxOutputTokens: 400 },
-  });
-
-  let lastErr;
-  for (const model of GEMINI_MODELS) {
-    const res = await fetch(geminiUrl(model), {
+  try {
+    const res = await fetch(CHAT_API_URL + '/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body,
-      signal: timeoutSignal(15000),
+      body: JSON.stringify({
+        message,
+        history: chatHistory.slice(-10),
+        city:    chatWeatherCtx?.city,
+        weather: chatWeatherCtx?.weather,
+      }),
+      signal: timeoutSignal(20000),
     });
-    if (!res.ok) {
-      console.error('[Gemini] model=' + model + ' HTTP ' + res.status);
-      lastErr = new Error('HTTP ' + res.status + ' (' + model + ')');
-      // 404（モデル不存在）・429（制限）はいずれも次モデルを試す
-      if (res.status === 404 || res.status === 429) continue;
-      throw lastErr;
-    }
     const json = await res.json();
-    const text = json.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!text) throw new Error('レスポンス空');
-    console.log('[Gemini] 成功 model=' + model);
-    setGeminiCache(city, text.trim());
-    return { text: text.trim(), stale: false };
-  }
-  // 全モデル失敗 → 古いスロットのキャッシュをフォールバック表示
-  const staleText = getGeminiStaleCache(city);
-  if (staleText) {
-    console.log('[Gemini] 旧キャッシュをフォールバック使用 city=' + city);
-    return { text: staleText, stale: true };
-  }
-  throw lastErr ?? new Error('全モデル失敗');
-}
+    if (!res.ok) throw new Error(json.error || 'HTTP ' + res.status);
 
-async function renderGeminiAdvice(data, unit) {
-  const section = document.getElementById('ai-section');
-  const body    = document.getElementById('ai-advice-body');
-  if (!section || !body) return;
-  if (!GEMINI_API_KEY || GEMINI_API_KEY === 'YOUR_GEMINI_API_KEY_HERE') return;
-  section.style.display = 'block';
-  body.innerHTML = '<div class="ai-loading-dots"><span></span><span></span><span></span></div>';
-  try {
-    const result = await fetchGeminiAdvice(data, unit);
-    if (result.stale) {
-      body.innerHTML =
-        '<div class="ai-text" style="opacity:0.75;">' + escHtml(result.text) + '</div>' +
-        '<div class="ai-error" style="margin-top:6px;font-size:12px;">※ APIの取得制限中のため前回取得時のアドバイスを表示しています。次のスロット（8/12/16/20時）に更新されます。</div>';
-    } else {
-      body.innerHTML = '<div class="ai-text">' + escHtml(result.text) + '</div>';
+    const reply = json.reply;
+    chatHistory.push({ role: 'user',  content: message });
+    chatHistory.push({ role: 'model', content: reply });
+    if (chatHistory.length > 20) chatHistory = chatHistory.slice(-20);
+
+    if (loadingBubble) {
+      loadingBubble.classList.remove('loading');
+      loadingBubble.textContent = reply;
+      const container = document.getElementById('chat-messages');
+      if (container) container.scrollTop = container.scrollHeight;
     }
   } catch(e) {
-    console.error('[Gemini]', e);
-    body.innerHTML =
-      '<div class="ai-error">AIアドバイスを取得できませんでした。しばらく時間をおいてから再試行してください。</div>' +
-      '<button class="btn" id="ai-retry-btn" style="margin-top:8px;font-size:13px;">再試行</button>';
-    const retryBtn = document.getElementById('ai-retry-btn');
-    if (retryBtn) retryBtn.addEventListener('click', () => renderGeminiAdvice(data, unit));
+    console.error('[Chat]', e);
+    if (loadingBubble) {
+      loadingBubble.classList.remove('loading');
+      loadingBubble.classList.add('error');
+      loadingBubble.textContent = '送信に失敗しました。しばらくしてから再試行してください。';
+    }
+  } finally {
+    if (sendBtn) sendBtn.disabled = false;
+    if (input) input.focus();
   }
 }
 

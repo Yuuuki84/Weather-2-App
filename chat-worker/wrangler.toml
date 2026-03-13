@@ -1,0 +1,6 @@
+name = "luna-elma-chat"
+main = "src/index.js"
+compatibility_date = "2025-01-01"
+
+[vars]
+ALLOWED_ORIGIN = "https://yuuuki84.github.io"
