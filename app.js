@@ -49,6 +49,12 @@ let pCtx            = null;
 let lastCoords        = null; // { lat, lon }
 let currentWeatherData = null;
 let currentCity       = '';
+let chartInstance     = null;
+let leafletMap        = null;
+let mapOverlayLayer   = null;
+let mapMarker         = null;
+let notificationsEnabled = false;
+let lastNotifiedKey   = '';
 
 // ===== ユーティリティ =====
 // iOS 15 以前では AbortSignal.timeout() 未対応のため互換ラッパーを使用
@@ -217,6 +223,7 @@ async function fetchAndRenderForecast(lat, lon, unit) {
   if (!r.ok || !r.data?.list) return;
   renderHourlyForecast(r.data, unit);
   renderWeeklyForecast(r.data, unit);
+  renderTempChart(r.data, unit);
 }
 
 function renderHourlyForecast(fd, unit) {
@@ -273,6 +280,169 @@ function renderWeeklyForecast(fd, unit) {
     '</div>';
   }).join('');
   section.style.display = 'block';
+}
+
+// ===== 気温グラフ（Chart.js） =====
+function renderTempChart(fd, unit) {
+  const section = document.getElementById('chart-section');
+  const canvas  = document.getElementById('temp-chart');
+  if (!section || !canvas || typeof Chart === 'undefined') return;
+  if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+
+  const items   = fd.list.slice(0, 16); // 48h
+  const tz      = fd.city?.timezone ?? 0;
+  const labels  = items.map(item => unixToTime(item.dt, tz));
+  const temps   = items.map(item => +(item.main?.temp ?? 0).toFixed(1));
+  const pops    = items.map(item => Math.round((item.pop ?? 0) * 100));
+  const tUnit   = unit === 'imperial' ? '℉' : '℃';
+  const isDark  = document.documentElement.getAttribute('data-theme') !== 'light';
+  const gridClr = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)';
+  const txtClr  = isDark ? 'rgba(238,242,255,0.55)' : 'rgba(15,23,42,0.5)';
+
+  chartInstance = new Chart(canvas.getContext('2d'), {
+    data: {
+      labels,
+      datasets: [
+        {
+          type: 'line',
+          label: '気温',
+          data: temps,
+          borderColor: '#818cf8',
+          backgroundColor: 'rgba(99,102,241,0.12)',
+          borderWidth: 2,
+          pointRadius: 3,
+          pointBackgroundColor: '#818cf8',
+          tension: 0.4,
+          fill: true,
+          yAxisID: 'yTemp',
+        },
+        {
+          type: 'bar',
+          label: '降水確率',
+          data: pops,
+          backgroundColor: 'rgba(59,130,246,0.22)',
+          borderColor: 'rgba(59,130,246,0.45)',
+          borderWidth: 1,
+          yAxisID: 'yPop',
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { labels: { color: txtClr, boxWidth: 12, font: { size: 12 } } },
+        tooltip: {
+          callbacks: {
+            label: ctx => ctx.dataset.label === '気温'
+              ? '  気温: ' + ctx.parsed.y + tUnit
+              : '  降水確率: ' + ctx.parsed.y + '%',
+          },
+        },
+      },
+      scales: {
+        x: {
+          ticks: { color: txtClr, maxRotation: 0, maxTicksLimit: 8, font: { size: 11 } },
+          grid:  { color: gridClr },
+        },
+        yTemp: {
+          type: 'linear', position: 'left',
+          ticks: { color: txtClr, callback: v => v + tUnit, font: { size: 11 } },
+          grid:  { color: gridClr },
+        },
+        yPop: {
+          type: 'linear', position: 'right',
+          min: 0, max: 100,
+          ticks: { color: '#60a5fa', callback: v => v + '%', font: { size: 11 } },
+          grid:  { drawOnChartArea: false },
+        },
+      },
+    },
+  });
+  section.style.display = 'block';
+}
+
+// ===== 雨雲レーダーマップ（Leaflet） =====
+function initOrUpdateMap(lat, lon) {
+  const section = document.getElementById('map-section');
+  if (!section || typeof L === 'undefined') return;
+  section.style.display = 'block';
+
+  if (!leafletMap) {
+    leafletMap = L.map('weather-map', { zoomControl: true }).setView([lat, lon], 8);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      maxZoom: 18,
+    }).addTo(leafletMap);
+    mapOverlayLayer = L.tileLayer(
+      'https://tile.openweathermap.org/map/precipitation_new/{z}/{x}/{y}.png?appid=' + WEATHER_API_KEY,
+      { opacity: 0.65, attribution: '© OpenWeatherMap' }
+    ).addTo(leafletMap);
+  } else {
+    leafletMap.setView([lat, lon], 8);
+  }
+
+  if (mapMarker) { leafletMap.removeLayer(mapMarker); }
+  mapMarker = L.marker([lat, lon]).addTo(leafletMap);
+
+  setTimeout(() => leafletMap.invalidateSize(), 150);
+}
+
+function setMapLayer(layerName) {
+  if (!leafletMap || !mapOverlayLayer) return;
+  leafletMap.removeLayer(mapOverlayLayer);
+  mapOverlayLayer = L.tileLayer(
+    'https://tile.openweathermap.org/map/' + layerName + '/{z}/{x}/{y}.png?appid=' + WEATHER_API_KEY,
+    { opacity: 0.65, attribution: '© OpenWeatherMap' }
+  ).addTo(leafletMap);
+}
+
+// ===== 天気アラート通知 =====
+async function requestNotificationPermission() {
+  if (!('Notification' in window)) return false;
+  if (Notification.permission === 'granted') return true;
+  if (Notification.permission === 'denied') return false;
+  const p = await Notification.requestPermission();
+  return p === 'granted';
+}
+
+function checkWeatherAlert(data, unit) {
+  if (!notificationsEnabled || Notification.permission !== 'granted') return;
+  const city  = data.name ?? '';
+  const temp  = data.main?.temp;
+  const tempC = unit === 'imperial' && temp != null ? (temp - 32) * 5/9 : temp;
+  const icon  = data.weather?.[0]?.icon ?? '';
+  const desc  = data.weather?.[0]?.description ?? '';
+  const wind  = data.wind?.speed ?? 0;
+
+  let alertTitle = '', alertBody = '';
+  if (icon.startsWith('11')) {
+    alertTitle = '⚡ 雷雨警報';
+    alertBody  = city + 'で雷雨が発生中です。外出を控えてください。';
+  } else if (tempC != null && tempC >= 35) {
+    alertTitle = '🔥 高温注意報';
+    alertBody  = city + 'の気温は ' + Math.round(tempC) + '℃ です。熱中症に注意！';
+  } else if (tempC != null && tempC <= 0) {
+    alertTitle = '❄️ 凍結注意報';
+    alertBody  = city + 'の気温は ' + Math.round(tempC) + '℃ 。路面凍結に注意！';
+  } else if (wind > 10) {
+    alertTitle = '💨 強風注意報';
+    alertBody  = city + ' で風速 ' + wind + ' m/s の強風が吹いています。';
+  } else if (icon.startsWith('09') || icon.startsWith('10')) {
+    alertTitle = '🌧 雨の情報';
+    alertBody  = city + ' は現在 ' + desc + ' です。傘をお忘れなく！';
+  }
+  if (!alertTitle) return;
+
+  const key = city + '|' + icon + '|' + Math.round(tempC ?? 0);
+  if (key === lastNotifiedKey) return;
+  lastNotifiedKey = key;
+
+  new Notification(alertTitle, {
+    body: alertBody,
+    icon: 'https://openweathermap.org/img/wn/' + (data.weather?.[0]?.icon ?? '01d') + '@2x.png',
+  });
 }
 
 // ===== 音声読み上げ =====
@@ -447,6 +617,7 @@ function renderWeather(data, unit) {
   currentWeatherData = { data, unit };
   currentCity = data.name || '';
   updateFavBtn(currentCity);
+  checkWeatherAlert(data, unit);
 
   // Gemini AI アドバイス
   renderGeminiAdvice(data, unit);
@@ -730,6 +901,7 @@ async function getWeatherByCity(cityRaw) {
     if (!w.ok || w.data?.cod !== 200) { showError('天気情報の取得に失敗しました。'); return; }
     renderWeather(w.data, unit);
     fetchAndRenderForecast(lat, lon, unit);
+    initOrUpdateMap(lat, lon);
     saveHistory(city);
     setShareLink(city);
     fetchAndRenderNews(currentCategory);
@@ -756,6 +928,7 @@ async function getWeatherByGeo() {
       if (!w.ok || w.data?.cod !== 200) { showError('現在地の天気取得に失敗しました。'); return; }
       renderWeather(w.data, unit);
       fetchAndRenderForecast(lat, lon, unit);
+      initOrUpdateMap(lat, lon);
       if (w.data?.name) { saveHistory(w.data.name); setShareLink(w.data.name); }
       fetchAndRenderNews(currentCategory);
     } catch { showError('通信エラーが発生しました。'); }
@@ -914,6 +1087,33 @@ newsTabs.querySelectorAll('.news-tab').forEach(tab => {
     tab.classList.add('active');
     currentCategory = tab.dataset.cat;
     fetchAndRenderNews(currentCategory);
+  });
+});
+
+// 通知ボタン
+document.getElementById('notif-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('notif-btn');
+  if (!notificationsEnabled) {
+    const granted = await requestNotificationPermission();
+    if (granted) {
+      notificationsEnabled = true;
+      btn.classList.remove('notif-btn-off');
+      btn.title = '通知ON（クリックでOFF）';
+    } else {
+      showError('ブラウザの通知が許可されていません。アドレスバー左のアイコンから通知を許可してください。');
+    }
+  } else {
+    notificationsEnabled = false;
+    btn.classList.add('notif-btn-off');
+    btn.title = '天気アラート通知をONにする';
+  }
+});
+// マップレイヤーボタン
+document.getElementById('map-layer-btns')?.querySelectorAll('.map-layer-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.getElementById('map-layer-btns').querySelectorAll('.map-layer-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    setMapLayer(btn.dataset.layer);
   });
 });
 

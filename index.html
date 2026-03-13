@@ -6,6 +6,7 @@
   <title>Luna & Elma — 天気 & ニュース</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
   <style>
     /* ===== DESIGN TOKENS ===== */
@@ -941,6 +942,22 @@
     @media (max-width: 860px) { .weekly-grid { grid-template-columns: repeat(3, 1fr); } }
     @media (max-width: 560px) { .weekly-grid { grid-template-columns: repeat(3, 1fr); } }
 
+    /* ===== TEMP CHART ===== */
+    .chart-section { margin-bottom: 16px; }
+    .chart-card { padding: 20px 20px 12px; }
+    #temp-chart { height: 220px !important; }
+
+    /* ===== RAIN RADAR MAP ===== */
+    .map-section { margin-bottom: 16px; }
+    .map-card { padding: 16px; }
+    .map-layer-btns { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+    .map-layer-btn { padding: 6px 12px; font-size: 12px; border-radius: 999px; }
+    .map-layer-btn.active { background: linear-gradient(135deg, var(--accent), #4f46e5); border-color: transparent; color: white; }
+    #weather-map { height: 320px; border-radius: 12px; overflow: hidden; position: relative; z-index: 0; }
+
+    /* ===== NOTIFICATION BTN ===== */
+    .notif-btn-off { opacity: 0.45; }
+
     /* ===== PRECIPITATION PILL ===== */
     .hourly-pop { min-height: 20px; display: flex; align-items: center; justify-content: center; }
     .pop-pill {
@@ -988,6 +1005,7 @@
         <div class="logo">Luna & Elma<span>天気 & ニュース</span></div>
       </div>
       <div class="header-actions">
+        <button class="btn icon-btn notif-btn-off" id="notif-btn" title="天気アラート通知をONにする" style="font-size:16px;">🔔</button>
         <select id="unit-select" title="単位">
           <option value="metric">℃ 摂氏</option>
           <option value="imperial">℉ 華氏</option>
@@ -1133,6 +1151,28 @@
         <div class="weekly-grid" id="weekly-grid"></div>
       </div>
 
+      <!-- Temp Chart -->
+      <div class="chart-section" id="chart-section" style="display:none;">
+        <div class="section-title">📊 気温・降水確率グラフ <span class="badge">48時間</span></div>
+        <div class="card chart-card">
+          <canvas id="temp-chart"></canvas>
+        </div>
+      </div>
+
+      <!-- Rain Radar Map -->
+      <div class="map-section" id="map-section" style="display:none;">
+        <div class="section-title">🗺 雨雲レーダーマップ <span class="badge">OpenWeatherMap</span></div>
+        <div class="card map-card">
+          <div class="map-layer-btns" id="map-layer-btns">
+            <button class="btn map-layer-btn active" data-layer="precipitation_new">🌧 雨雲</button>
+            <button class="btn map-layer-btn" data-layer="clouds_new">☁️ 雲</button>
+            <button class="btn map-layer-btn" data-layer="temp_new">🌡 気温</button>
+            <button class="btn map-layer-btn" data-layer="wind_new">💨 風</button>
+          </div>
+          <div id="weather-map"></div>
+        </div>
+      </div>
+
       <!-- Weather Advice -->
       <div class="advice-section" id="advice-section" style="display:none;">
         <div class="advice-grid" id="advice-grid"></div>
@@ -1179,6 +1219,8 @@
 
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="config.js"></script>
   <script src="app.js"></script>
 </body>
