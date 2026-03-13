@@ -476,11 +476,16 @@ function buildWeatherText(data, unit) {
 async function speakWeather() {
   const btn = document.getElementById('voice-btn');
 
-  // 再生中なら停止
+  // 再生中なら停止（Google TTS / Web Speech API どちらも対応）
   if (ttsAudio && !ttsAudio.paused) {
     ttsAudio.pause();
     ttsAudio.currentTime = 0;
     ttsAudio = null;
+    if (btn) btn.textContent = '🔊';
+    return;
+  }
+  if (window.speechSynthesis?.speaking) {
+    window.speechSynthesis.cancel();
     if (btn) btn.textContent = '🔊';
     return;
   }
@@ -529,8 +534,7 @@ async function speakWeather() {
   } catch(e) {
     console.error('[TTS]', e);
     if (btn) { btn.textContent = '🔊'; btn.disabled = false; }
-    // Google TTS 失敗時は Web Speech API にフォールバック
-    _speakFallback();
+    showError('音声の取得に失敗しました（HTTP ' + (e.message || '') + '）');
   }
 }
 
