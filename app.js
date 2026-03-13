@@ -1122,23 +1122,43 @@ const RSS_FEEDS = {
 const newsCache = {};
 const CACHE_TTL = 15 * 60 * 1000;
 
+// RSS プロキシ（allorigins 失敗時は corsproxy.io にフォールバック）
+async function fetchRSSViaProxy(rssUrl) {
+  const proxies = [
+    'https://api.allorigins.win/get?url=' + encodeURIComponent(rssUrl),
+    'https://corsproxy.io/?' + encodeURIComponent(rssUrl),
+  ];
+  let lastErr;
+  for (const proxyUrl of proxies) {
+    try {
+      const res = await fetch(proxyUrl, { signal: timeoutSignal(20000) });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      // allorigins は { contents: "..." }、corsproxy.io は直接テキストを返す
+      const text = proxyUrl.includes('allorigins')
+        ? (await res.json()).contents
+        : await res.text();
+      if (!text) throw new Error('コンテンツ取得失敗');
+      return text;
+    } catch(e) {
+      console.warn('[RSS] プロキシ失敗:', proxyUrl, e.message);
+      lastErr = e;
+    }
+  }
+  throw lastErr ?? new Error('全プロキシ失敗');
+}
+
 async function fetchRSSNews(category) {
   const now = Date.now();
   if (newsCache[category] && (now - newsCache[category].ts) < CACHE_TTL) return newsCache[category].articles;
 
   const rssUrl = RSS_FEEDS[category] || RSS_FEEDS.general;
-  const proxyUrl = 'https://api.allorigins.win/get?url=' + encodeURIComponent(rssUrl);
+  const contents = await fetchRSSViaProxy(rssUrl);
 
-  const res = await fetch(proxyUrl, { signal: timeoutSignal(15000) });
-  if (!res.ok) throw new Error('HTTP ' + res.status);
-  const data = await res.json();
-  if (!data.contents) throw new Error('コンテンツ取得失敗');
-
-  const xml = new DOMParser().parseFromString(data.contents, 'text/xml');
+  const xml = new DOMParser().parseFromString(contents, 'text/xml');
   const items = Array.from(xml.querySelectorAll('item'));
   if (!items.length) throw new Error('記事が見つかりませんでした');
 
-  const feedTitle = xml.querySelector('channel > title')?.textContent || 'NHK ニュース';
+  const feedTitle = xml.querySelector('channel > title')?.textContent || 'Yahoo ニュース';
 
   const articles = items.slice(0, 20).map(item => ({
     title:       item.querySelector('title')?.textContent?.trim() || '',
@@ -1172,7 +1192,7 @@ async function fetchAndRenderNews(category) {
     showNewsMessage('📭', '「' + label + '」の記事が見つかりませんでした', 'しばらく後にお試しください。');
   } catch(e) {
     showNewsMessage('⚠️', 'ニュースの取得に失敗しました',
-      String(e.message || e) + '<br><small style="opacity:.7">NHK ニュース (RSS)</small>');
+      String(e.message || e) + '<br><small style="opacity:.7">Yahoo ニュース (RSS)</small>');
   }
 }
 
