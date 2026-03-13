@@ -104,6 +104,12 @@ function fmtVis(m) {
 }
 function fmtPct(p)  { return p == null ? '—' : p + '%'; }
 function fmtHpa(h)  { return h == null ? '—' : h + ' hPa'; }
+function tempColorStyle(tempVal, unit) {
+  if (tempVal == null) return '';
+  const c = unit === 'imperial' ? (tempVal - 32) * 5/9 : tempVal;
+  const col = c <= 10 ? '#60a5fa' : c >= 20 ? '#fb923c' : '';
+  return col ? ' style="color:' + col + ';"' : '';
+}
 
 async function fetchJson(url, ms = 10000) {
   const ctrl = new AbortController();
@@ -225,7 +231,7 @@ function renderHourlyForecast(fd, unit) {
     return '<div class="hourly-item">' +
       '<div class="hourly-time">' + unixToTime(item.dt, tz) + '</div>' +
       '<img src="https://openweathermap.org/img/wn/' + icon + '.png" alt="' + escHtml(desc) + '" title="' + escHtml(desc) + '">' +
-      '<div class="hourly-temp">' + fmtTemp(item.main?.temp, unit) + '</div>' +
+      '<div class="hourly-temp"' + tempColorStyle(item.main?.temp, unit) + '>' + fmtTemp(item.main?.temp, unit) + '</div>' +
       '<div class="hourly-pop">' + (pop > 0 ? '<span class="pop-pill" style="--p:' + pop + '%">' + pop + '%</span>' : '') + '</div>' +
     '</div>';
   }).join('');
@@ -260,8 +266,8 @@ function renderWeeklyForecast(fd, unit) {
       '<div class="weekly-day">' + d.label + '</div>' +
       '<img src="https://openweathermap.org/img/wn/' + icon + '.png" alt="">' +
       '<div class="weekly-temps">' +
-        '<span class="weekly-max">' + Math.round(maxT) + tUnit + '</span>' +
-        '<span class="weekly-min">' + Math.round(minT) + tUnit + '</span>' +
+        '<span class="weekly-max"' + tempColorStyle(maxT, unit) + '>' + Math.round(maxT) + tUnit + '</span>' +
+        '<span class="weekly-min"' + tempColorStyle(minT, unit) + '>' + Math.round(minT) + tUnit + '</span>' +
       '</div>' +
       (maxPop > 0 ? '<div class="weekly-pop"><span class="pop-pill" style="--p:' + maxPop + '%">' + maxPop + '%</span></div>' : '') +
     '</div>';
