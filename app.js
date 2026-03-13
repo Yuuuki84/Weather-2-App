@@ -14,6 +14,7 @@ const LS = {
   history:   'sora_history',
   favorites: 'sora_favorites',
   category:  'sora_news_category',
+  chat:      'sora_chat_history',
 };
 
 // ===== 人気都市（オートコンプリート候補） =====
@@ -203,6 +204,51 @@ function renderFavorites() {
     b.textContent = '⭐ ' + name;
     b.addEventListener('click', () => { cityInput.value = name; getWeatherByCity(name); });
     box.appendChild(b);
+  });
+  renderFavWeatherDashboard();
+}
+
+async function renderFavWeatherDashboard() {
+  const favs    = loadFavorites();
+  const section = document.getElementById('fav-weather-section');
+  const grid    = document.getElementById('fav-weather-grid');
+  if (!section || !grid) return;
+  if (!favs.length || typeof WEATHER_API_KEY === 'undefined' || !WEATHER_API_KEY) {
+    section.style.display = 'none';
+    return;
+  }
+  section.style.display = '';
+  // スケルトン表示
+  grid.innerHTML = favs.map(() => '<div class="fav-weather-card skeleton"></div>').join('');
+
+  const results = await Promise.all(favs.map(city =>
+    fetchJson(
+      'https://api.openweathermap.org/data/2.5/weather?q=' + encodeURIComponent(city) +
+      '&appid=' + WEATHER_API_KEY + '&units=metric&lang=ja'
+    ).catch(() => ({ ok: false }))
+  ));
+
+  grid.innerHTML = '';
+  results.forEach((r, i) => {
+    const card = document.createElement('div');
+    card.className = 'fav-weather-card';
+    if (!r.ok || !r.data) {
+      card.innerHTML =
+        '<div class="fwc-city">' + favs[i] + '</div>' +
+        '<div class="fwc-err">取得失敗</div>';
+    } else {
+      const d    = r.data;
+      const icon = d.weather?.[0]?.icon || '01d';
+      const temp = Math.round(d.main?.temp ?? 0);
+      const desc = d.weather?.[0]?.description ?? '';
+      card.innerHTML =
+        '<div class="fwc-city">' + (d.name || favs[i]) + '</div>' +
+        '<img class="fwc-icon" src="https://openweathermap.org/img/wn/' + icon + '@2x.png" alt="' + desc + '" loading="lazy">' +
+        '<div class="fwc-temp">' + temp + '°</div>' +
+        '<div class="fwc-desc">' + desc + '</div>';
+    }
+    card.addEventListener('click', () => { cityInput.value = favs[i]; getWeatherByCity(favs[i]); });
+    grid.appendChild(card);
   });
 }
 function updateFavBtn(city) {
@@ -832,6 +878,20 @@ let chatHistory = [];
 let chatWeatherCtx = null;
 let chatListenersAttached = false;
 
+function saveChatHistory() {
+  try { localStorage.setItem(LS.chat, JSON.stringify(chatHistory.slice(-20))); } catch {}
+}
+function loadChatHistory() {
+  try { const s = JSON.parse(localStorage.getItem(LS.chat) || '[]'); return Array.isArray(s) ? s : []; }
+  catch { return []; }
+}
+function clearChatHistory() {
+  chatHistory = [];
+  try { localStorage.removeItem(LS.chat); } catch {}
+  const c = document.getElementById('chat-messages');
+  if (c) c.innerHTML = '';
+}
+
 function initChatSection(data, unit) {
   const section = document.getElementById('ai-section');
   if (!section) return;
@@ -853,10 +913,21 @@ function initChatSection(data, unit) {
 
   if (!chatListenersAttached) {
     chatListenersAttached = true;
-    const sendBtn = document.getElementById('chat-send-btn');
-    const input   = document.getElementById('chat-input');
-    if (sendBtn) sendBtn.addEventListener('click', sendChatMessage);
-    if (input)   input.addEventListener('keydown', e => { if (e.key === 'Enter') sendChatMessage(); });
+    const sendBtn  = document.getElementById('chat-send-btn');
+    const input    = document.getElementById('chat-input');
+    const clearBtn = document.getElementById('chat-clear-btn');
+    if (sendBtn)  sendBtn.addEventListener('click', sendChatMessage);
+    if (input)    input.addEventListener('keydown', e => { if (e.key === 'Enter') sendChatMessage(); });
+    if (clearBtn) clearBtn.addEventListener('click', clearChatHistory);
+  }
+
+  // 保存済み履歴を復元（初回のみ）
+  if (chatHistory.length === 0) {
+    chatHistory = loadChatHistory();
+    const container = document.getElementById('chat-messages');
+    if (container && container.children.length === 0 && chatHistory.length > 0) {
+      chatHistory.forEach(t => appendChatBubble(t.role === 'user' ? 'user' : 'ai', t.content));
+    }
   }
 }
 
@@ -911,6 +982,7 @@ async function sendChatMessage() {
     chatHistory.push({ role: 'user',  content: message });
     chatHistory.push({ role: 'model', content: reply });
     if (chatHistory.length > 20) chatHistory = chatHistory.slice(-20);
+    saveChatHistory();
 
     if (loadingBubble) {
       loadingBubble.classList.remove('loading');

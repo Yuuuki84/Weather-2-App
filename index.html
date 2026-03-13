@@ -84,30 +84,49 @@
     .orb-2 { width: 500px; height: 500px; top: 10%; right: -150px; }
     .orb-3 { width: 400px; height: 400px; bottom: -100px; left: 30%; }
 
+    @keyframes orbFloat {
+      0%,100% { transform: translate(0,0) scale(1); }
+      33%      { transform: translate(18px,-24px) scale(1.04); }
+      66%      { transform: translate(-12px,14px) scale(0.97); }
+    }
+    @keyframes orbFloat2 {
+      0%,100% { transform: translate(0,0) scale(1); }
+      33%      { transform: translate(-20px,18px) scale(1.03); }
+      66%      { transform: translate(14px,-10px) scale(0.98); }
+    }
+    @keyframes sunPulse {
+      0%,100% { box-shadow: 0 0 60px 20px rgba(251,191,36,0.18); }
+      50%      { box-shadow: 0 0 100px 40px rgba(251,191,36,0.32); }
+    }
+    @keyframes thunderFlash {
+      0%,90%,100% { opacity: 0.25; }
+      93%          { opacity: 0.55; }
+      96%          { opacity: 0.20; }
+    }
+
     body.wx-clear   .orb { opacity: 0.30; }
-    body.wx-clear   .orb-1 { background: #f59e0b; }
-    body.wx-clear   .orb-2 { background: #3b82f6; }
-    body.wx-clear   .orb-3 { background: #6366f1; }
+    body.wx-clear   .orb-1 { background: #f59e0b; animation: orbFloat 9s ease-in-out infinite, sunPulse 4s ease-in-out infinite; }
+    body.wx-clear   .orb-2 { background: #3b82f6; animation: orbFloat2 12s ease-in-out infinite; }
+    body.wx-clear   .orb-3 { background: #6366f1; animation: orbFloat 14s ease-in-out infinite reverse; }
 
     body.wx-cloudy  .orb { opacity: 0.20; }
-    body.wx-cloudy  .orb-1 { background: #64748b; }
-    body.wx-cloudy  .orb-2 { background: #94a3b8; }
-    body.wx-cloudy  .orb-3 { background: #475569; }
+    body.wx-cloudy  .orb-1 { background: #64748b; animation: orbFloat 16s ease-in-out infinite; }
+    body.wx-cloudy  .orb-2 { background: #94a3b8; animation: orbFloat2 18s ease-in-out infinite; }
+    body.wx-cloudy  .orb-3 { background: #475569; animation: orbFloat 20s ease-in-out infinite reverse; }
 
     body.wx-rain    .orb { opacity: 0.22; }
-    body.wx-rain    .orb-1 { background: #1d4ed8; }
-    body.wx-rain    .orb-2 { background: #3b82f6; }
-    body.wx-rain    .orb-3 { background: #0ea5e9; }
+    body.wx-rain    .orb-1 { background: #1d4ed8; animation: orbFloat 10s ease-in-out infinite; }
+    body.wx-rain    .orb-2 { background: #3b82f6; animation: orbFloat2 13s ease-in-out infinite; }
+    body.wx-rain    .orb-3 { background: #0ea5e9; animation: orbFloat 11s ease-in-out infinite reverse; }
 
     body.wx-snow    .orb { opacity: 0.25; }
-    body.wx-snow    .orb-1 { background: #e0e7ff; }
-    body.wx-snow    .orb-2 { background: #bfdbfe; }
-    body.wx-snow    .orb-3 { background: #a5f3fc; }
+    body.wx-snow    .orb-1 { background: #e0e7ff; animation: orbFloat 18s ease-in-out infinite; }
+    body.wx-snow    .orb-2 { background: #bfdbfe; animation: orbFloat2 22s ease-in-out infinite; }
+    body.wx-snow    .orb-3 { background: #a5f3fc; animation: orbFloat 15s ease-in-out infinite reverse; }
 
-    body.wx-thunder .orb { opacity: 0.25; }
-    body.wx-thunder .orb-1 { background: #7c3aed; }
-    body.wx-thunder .orb-2 { background: #c026d3; }
-    body.wx-thunder .orb-3 { background: #4f46e5; }
+    body.wx-thunder .orb-1 { background: #7c3aed; animation: orbFloat 8s ease-in-out infinite, thunderFlash 7s ease-in-out infinite; }
+    body.wx-thunder .orb-2 { background: #c026d3; animation: orbFloat2 10s ease-in-out infinite, thunderFlash 11s ease-in-out infinite 2s; }
+    body.wx-thunder .orb-3 { background: #4f46e5; animation: orbFloat 12s ease-in-out infinite reverse, thunderFlash 9s ease-in-out infinite 4s; }
 
     /* ===== PARTICLES (rain/snow effect) ===== */
     #particle-canvas {
@@ -868,6 +887,18 @@
       color: white;
       margin-left: auto;
     }
+    .chat-clear-btn {
+      background: none;
+      border: 1px solid var(--border2);
+      border-radius: 8px;
+      color: var(--text2);
+      font-size: 13px;
+      padding: 3px 9px;
+      cursor: pointer;
+      margin-left: 8px;
+      transition: color .15s, border-color .15s;
+    }
+    .chat-clear-btn:hover { color: var(--red); border-color: var(--red); }
     /* チャットメッセージ一覧 */
     .chat-messages {
       max-height: 320px;
@@ -957,6 +988,36 @@
       color: var(--text);
     }
     .fav-chip:hover { border-color: #fbbf24; }
+
+    /* ===== FAVORITES WEATHER DASHBOARD ===== */
+    .fav-weather-label {
+      font-size: 11px; font-weight: 700; letter-spacing: .06em;
+      text-transform: uppercase; color: var(--text2);
+      margin-bottom: 8px; margin-top: 12px;
+    }
+    .fav-weather-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: 10px;
+      margin-bottom: 4px;
+    }
+    .fav-weather-card {
+      background: var(--surface2);
+      border: 1px solid var(--border2);
+      border-radius: var(--radius2);
+      padding: 12px 10px;
+      text-align: center;
+      cursor: pointer;
+      transition: transform .15s, border-color .2s;
+    }
+    .fav-weather-card:hover { transform: translateY(-2px); border-color: rgba(251,191,36,0.5); }
+    .fwc-city { font-size: 12px; font-weight: 600; color: var(--text2); margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .fwc-icon { width: 44px; height: 44px; margin: 0 auto; display: block; }
+    .fwc-temp { font-size: 20px; font-weight: 700; color: var(--text); margin-top: 2px; }
+    .fwc-desc { font-size: 11px; color: var(--text2); margin-top: 2px; }
+    .fwc-err  { font-size: 11px; color: var(--red); margin-top: 8px; }
+    .fav-weather-card.skeleton { background: var(--surface); border-color: var(--border); animation: pulse 1.4s ease-in-out infinite; min-height: 100px; }
+    @keyframes pulse { 0%,100%{opacity:.5} 50%{opacity:1} }
 
     /* ===== HOURLY FORECAST ===== */
     .hourly-section { margin-bottom: 16px; }
@@ -1116,6 +1177,11 @@
     <div id="favorites-section" style="display:none;">
       <div class="favorites-label">⭐ お気に入り都市</div>
       <div id="favorites-box" class="chips"></div>
+      <!-- お気に入り都市の天気一覧 -->
+      <div id="fav-weather-section" style="display:none;">
+        <div class="fav-weather-label">現在の天気</div>
+        <div id="fav-weather-grid" class="fav-weather-grid"></div>
+      </div>
     </div>
 
     <!-- Status / Error -->
@@ -1276,7 +1342,8 @@
           <div class="ai-header">
             <span class="ai-header-icon">💬</span>
             <span class="ai-header-title">AI チャット</span>
-            <span class="ai-header-badge">Gemini</span>
+            <span class="ai-header-badge">Workers AI</span>
+            <button class="chat-clear-btn" id="chat-clear-btn" title="履歴を削除">🗑</button>
           </div>
           <div class="chat-messages" id="chat-messages"></div>
           <div class="chat-input-row">
