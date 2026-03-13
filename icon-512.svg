@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1e1b4b"/>
+      <stop offset="100%" style="stop-color:#312e81"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#6366f1"/>
+      <stop offset="100%" style="stop-color:#818cf8"/>
+    </linearGradient>
+  </defs>
+  <!-- 背景 -->
+  <rect width="512" height="512" rx="100" fill="url(#bg)"/>
+  <!-- 雲 -->
+  <ellipse cx="256" cy="235" rx="100" ry="58" fill="url(#accent)" opacity="0.9"/>
+  <ellipse cx="196" cy="258" rx="58" ry="42" fill="url(#accent)" opacity="0.9"/>
+  <ellipse cx="316" cy="258" rx="58" ry="42" fill="url(#accent)" opacity="0.9"/>
+  <ellipse cx="256" cy="272" rx="116" ry="48" fill="url(#accent)" opacity="0.9"/>
+  <!-- 太陽 -->
+  <circle cx="372" cy="152" r="48" fill="#fbbf24" opacity="0.95"/>
+  <line x1="372" y1="88" x2="372" y2="72" stroke="#fbbf24" stroke-width="8" stroke-linecap="round"/>
+  <line x1="372" y1="216" x2="372" y2="232" stroke="#fbbf24" stroke-width="8" stroke-linecap="round"/>
+  <line x1="308" y1="152" x2="292" y2="152" stroke="#fbbf24" stroke-width="8" stroke-linecap="round"/>
+  <line x1="436" y1="152" x2="452" y2="152" stroke="#fbbf24" stroke-width="8" stroke-linecap="round"/>
+  <line x1="327" y1="107" x2="316" y2="96" stroke="#fbbf24" stroke-width="7" stroke-linecap="round"/>
+  <line x1="417" y1="197" x2="428" y2="208" stroke="#fbbf24" stroke-width="7" stroke-linecap="round"/>
+  <line x1="417" y1="107" x2="428" y2="96" stroke="#fbbf24" stroke-width="7" stroke-linecap="round"/>
+  <line x1="327" y1="197" x2="316" y2="208" stroke="#fbbf24" stroke-width="7" stroke-linecap="round"/>
+  <!-- L & E テキスト -->
+  <text x="256" y="400" text-anchor="middle" font-family="serif" font-size="60" font-weight="bold" fill="#e0e7ff" letter-spacing="6">L &amp; E</text>
+</svg>
