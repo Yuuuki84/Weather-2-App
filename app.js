@@ -705,14 +705,13 @@ function renderNewsCards(articles, categoryLabel) {
 }
 
 function newsCardHTML(a, featured, categoryLabel) {
-  const imgHtml = a.image
-    ? '<img src="' + escHtml(a.image) + '" alt="" loading="lazy" onerror="this.parentElement.innerHTML=\'<div class=news-img-placeholder>📰</div>\'">'
-    : '<div class="news-img-placeholder">📰</div>';
-  const srcIcon = a.sourceIcon
-    ? '<img src="' + escHtml(a.sourceIcon) + '" alt="" style="width:14px;height:14px;border-radius:3px;object-fit:cover;vertical-align:middle;margin-right:4px;">'
-    : '📡 ';
-  return '<div class="news-card' + (featured?' featured':'') + '" data-url="' + escHtml(a.url) + '" tabindex="0" role="link" aria-label="' + escHtml(a.title) + '">' +
-    '<div class="news-img">' + imgHtml + '</div>' +
+  const hasImage = !!a.image;
+  const imgSection = hasImage
+    ? '<div class="news-img"><img src="' + escHtml(a.image) + '" alt="" loading="lazy" onerror="this.parentElement.style.display=\'none\'"></div>'
+    : '';
+  const srcIcon = '📡 ';
+  return '<div class="news-card' + (featured?' featured':'') + (hasImage?'':' no-img') + '" data-url="' + escHtml(a.url) + '" tabindex="0" role="link" aria-label="' + escHtml(a.title) + '">' +
+    imgSection +
     '<div class="news-body">' +
       '<div class="news-category">' + escHtml(categoryLabel || a.category || '') + '</div>' +
       '<div class="news-title">' + escHtml(a.title) + '</div>' +
