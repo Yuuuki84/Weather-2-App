@@ -962,13 +962,13 @@ const CATEGORY_LABEL = {
 };
 
 const RSS_FEEDS = {
-  general:       'https://www3.nhk.or.jp/rss/news/cat0.xml',  // 主要ニュース
-  technology:    'https://www3.nhk.or.jp/rss/news/cat3.xml',  // 科学・文化
-  science:       'https://www3.nhk.or.jp/rss/news/cat3.xml',  // 科学・文化
-  sports:        'https://www3.nhk.or.jp/rss/news/cat7.xml',  // スポーツ
-  entertainment: 'https://www3.nhk.or.jp/rss/news/cat0.xml',  // 主要
-  health:        'https://www3.nhk.or.jp/rss/news/cat1.xml',  // 社会
-  business:      'https://www3.nhk.or.jp/rss/news/cat4.xml',  // 経済
+  general:       'https://news.yahoo.co.jp/rss/topics/top-picks.xml',    // トップ
+  technology:    'https://news.yahoo.co.jp/rss/topics/it.xml',           // IT・科学
+  science:       'https://news.yahoo.co.jp/rss/topics/it.xml',           // IT・科学
+  sports:        'https://news.yahoo.co.jp/rss/topics/sports.xml',       // スポーツ
+  entertainment: 'https://news.yahoo.co.jp/rss/topics/entertainment.xml',// エンタメ
+  health:        'https://news.yahoo.co.jp/rss/topics/health.xml',       // 健康
+  business:      'https://news.yahoo.co.jp/rss/topics/business.xml',     // 経済
   pet:           'https://news.google.com/rss/search?q=%E3%83%9A%E3%83%83%E3%83%88+%E7%8A%AC+%E7%8C%AB&hl=ja&gl=JP&ceid=JP:ja', // ペット（Google News）
 };
 
