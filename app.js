@@ -13,6 +13,7 @@ const LS = {
   unit:      'sora_unit',
   history:   'sora_history',
   favorites: 'sora_favorites',
+  category:  'sora_news_category',
 };
 
 // ===== 人気都市（オートコンプリート候補） =====
@@ -1106,6 +1107,7 @@ newsTabs.querySelectorAll('.news-tab').forEach(tab => {
     newsTabs.querySelectorAll('.news-tab').forEach(t => t.classList.remove('active'));
     tab.classList.add('active');
     currentCategory = tab.dataset.cat;
+    localStorage.setItem(LS.category, currentCategory);
     fetchAndRenderNews(currentCategory);
   });
 });
@@ -1146,7 +1148,18 @@ document.getElementById('map-layer-btns')?.querySelectorAll('.map-layer-btn').fo
   if (savedUnit === 'metric' || savedUnit === 'imperial') applyUnit(savedUnit);
   renderHistory();
   renderFavorites();
-  fetchAndRenderNews('general');
+  // 前回選択したニュースカテゴリを復元
+  const validCategories = Object.keys(RSS_FEEDS);
+  const savedCategory = localStorage.getItem(LS.category);
+  if (savedCategory && validCategories.includes(savedCategory)) {
+    currentCategory = savedCategory;
+  }
+  const activeTab = newsTabs.querySelector('.news-tab[data-cat="' + currentCategory + '"]');
+  if (activeTab) {
+    newsTabs.querySelectorAll('.news-tab').forEach(t => t.classList.remove('active'));
+    activeTab.classList.add('active');
+  }
+  fetchAndRenderNews(currentCategory);
   const urlCity = new URL(location.href).searchParams.get('city');
   if (urlCity) { cityInput.value = urlCity; getWeatherByCity(urlCity); }
 })();
