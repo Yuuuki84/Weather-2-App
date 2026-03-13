@@ -27,9 +27,10 @@ jobs:
         env:
           WEATHER_API_KEY: ${{ secrets.WEATHER_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GOOGLE_TTS_KEY: ${{ secrets.GOOGLE_TTS_KEY }}
         run: |
-          printf '// このファイルはデプロイ時に自動生成されます\nconst WEATHER_API_KEY = "%s";\nconst GEMINI_API_KEY  = "%s";\n' \
-            "$WEATHER_API_KEY" "$GEMINI_API_KEY" > config.js
+          printf '// このファイルはデプロイ時に自動生成されます\nconst WEATHER_API_KEY = "%s";\nconst GEMINI_API_KEY  = "%s";\nconst GNEWS_API_KEY   = "";\nconst GOOGLE_TTS_KEY  = "%s";\n' \
+            "$WEATHER_API_KEY" "$GEMINI_API_KEY" "$GOOGLE_TTS_KEY" > config.js
 
       - name: GitHub Pages の設定
         uses: actions/configure-pages@v4
