@@ -9,9 +9,10 @@
 
 // ===== 保存キー =====
 const LS = {
-  theme:   'sora_theme',
-  unit:    'sora_unit',
-  history: 'sora_history',
+  theme:     'sora_theme',
+  unit:      'sora_unit',
+  history:   'sora_history',
+  favorites: 'sora_favorites',
 };
 
 // ===== 人気都市（オートコンプリート候補） =====
@@ -45,6 +46,9 @@ let currentCategory = 'general';
 let particles       = [];
 let particleAnim    = null;
 let pCtx            = null;
+let lastCoords        = null; // { lat, lon }
+let currentWeatherData = null;
+let currentCity       = '';
 
 // ===== ユーティリティ =====
 // iOS 15 以前では AbortSignal.timeout() 未対応のため互換ラッパーを使用
@@ -152,12 +156,145 @@ function renderHistory() {
   });
 }
 
+// ===== お気に入り =====
+function loadFavorites() {
+  try { const r = JSON.parse(localStorage.getItem(LS.favorites)||'[]'); return Array.isArray(r)?r:[]; }
+  catch { return []; }
+}
+function toggleFavorite(city) {
+  const favs = loadFavorites();
+  const idx  = favs.indexOf(city);
+  if (idx >= 0) favs.splice(idx, 1);
+  else { favs.unshift(city); if (favs.length > 10) favs.pop(); }
+  localStorage.setItem(LS.favorites, JSON.stringify(favs));
+  renderFavorites();
+  updateFavBtn(city);
+}
+function renderFavorites() {
+  const section = document.getElementById('favorites-section');
+  const box     = document.getElementById('favorites-box');
+  if (!section || !box) return;
+  const favs = loadFavorites();
+  if (!favs.length) { section.style.display = 'none'; return; }
+  section.style.display = '';
+  box.innerHTML = '';
+  favs.forEach(name => {
+    const b = document.createElement('button');
+    b.className = 'chip fav-chip';
+    b.textContent = '⭐ ' + name;
+    b.addEventListener('click', () => { cityInput.value = name; getWeatherByCity(name); });
+    box.appendChild(b);
+  });
+}
+function updateFavBtn(city) {
+  const btn = document.getElementById('fav-btn');
+  if (!btn) return;
+  const isFav = loadFavorites().includes(city);
+  btn.textContent = isFav ? '⭐' : '☆';
+  btn.title = isFav ? 'お気に入りから削除' : 'お気に入りに追加';
+}
+
 // ===== URL共有 =====
 function setShareLink(city) {
   const u = new URL(location.href);
   u.searchParams.set('city', city);
   const el = document.getElementById('share-link');
   if (el) el.href = u.toString();
+}
+
+// ===== 予報（24h・週間） =====
+async function fetchAndRenderForecast(lat, lon, unit) {
+  const r = await fetchJson(
+    'https://api.openweathermap.org/data/2.5/forecast?lat=' + lat + '&lon=' + lon +
+    '&appid=' + WEATHER_API_KEY + '&units=' + unit + '&lang=ja&cnt=40'
+  );
+  if (!r.ok || !r.data?.list) return;
+  renderHourlyForecast(r.data, unit);
+  renderWeeklyForecast(r.data, unit);
+}
+
+function renderHourlyForecast(fd, unit) {
+  const section = document.getElementById('hourly-section');
+  const strip   = document.getElementById('hourly-strip');
+  if (!section || !strip) return;
+  const tz = fd.city?.timezone ?? 0;
+  strip.innerHTML = fd.list.slice(0, 8).map(item => {
+    const icon = item.weather?.[0]?.icon ?? '01d';
+    const desc = item.weather?.[0]?.description ?? '';
+    const pop  = item.pop ? Math.round(item.pop * 100) : 0;
+    return '<div class="hourly-item">' +
+      '<div class="hourly-time">' + unixToTime(item.dt, tz) + '</div>' +
+      '<img src="https://openweathermap.org/img/wn/' + icon + '.png" alt="' + escHtml(desc) + '" title="' + escHtml(desc) + '">' +
+      '<div class="hourly-temp">' + fmtTemp(item.main?.temp, unit) + '</div>' +
+      '<div class="hourly-rain">' + (pop > 0 ? '💧' + pop + '%' : '') + '</div>' +
+    '</div>';
+  }).join('');
+  section.style.display = 'block';
+}
+
+function renderWeeklyForecast(fd, unit) {
+  const section = document.getElementById('weekly-section');
+  const grid    = document.getElementById('weekly-grid');
+  if (!section || !grid) return;
+  const tz   = fd.city?.timezone ?? 0;
+  const days = {};
+  const WDAY = ['日','月','火','水','木','金','土'];
+  fd.list.forEach(item => {
+    const d   = new Date((item.dt + tz) * 1000);
+    const key = d.getUTCFullYear() + '-' + d.getUTCMonth() + '-' + d.getUTCDate();
+    if (!days[key]) {
+      const label = (d.getUTCMonth()+1) + '/' + d.getUTCDate() + '（' + WDAY[d.getUTCDay()] + '）';
+      days[key] = { label, temps: [], icons: [], pop: [] };
+    }
+    days[key].temps.push(item.main?.temp ?? 0);
+    days[key].icons.push(item.weather?.[0]?.icon ?? '01d');
+    days[key].pop.push(item.pop ?? 0);
+  });
+  grid.innerHTML = Object.values(days).slice(0, 6).map(d => {
+    const maxT  = Math.max(...d.temps);
+    const minT  = Math.min(...d.temps);
+    const icon  = d.icons[Math.floor(d.icons.length / 2)] || d.icons[0];
+    const maxPop = Math.round(Math.max(...d.pop) * 100);
+    const tUnit = unit === 'imperial' ? '℉' : '℃';
+    return '<div class="weekly-card">' +
+      '<div class="weekly-day">' + d.label + '</div>' +
+      '<img src="https://openweathermap.org/img/wn/' + icon + '.png" alt="">' +
+      '<div class="weekly-temps">' +
+        '<span class="weekly-max">' + Math.round(maxT) + tUnit + '</span>' +
+        '<span class="weekly-min">' + Math.round(minT) + tUnit + '</span>' +
+      '</div>' +
+      (maxPop > 0 ? '<div class="weekly-pop">💧' + maxPop + '%</div>' : '') +
+    '</div>';
+  }).join('');
+  section.style.display = 'block';
+}
+
+// ===== 音声読み上げ =====
+function speakWeather() {
+  if (!window.speechSynthesis) { showError('このブラウザは音声読み上げに対応していません。'); return; }
+  if (!currentWeatherData) return;
+  window.speechSynthesis.cancel();
+  const btn = document.getElementById('voice-btn');
+  if (btn) btn.textContent = '🔇';
+  const { data, unit } = currentWeatherData;
+  const city    = data.name ?? '';
+  const country = data.sys?.country ?? '';
+  const desc    = data.weather?.[0]?.description ?? '';
+  const temp    = Math.round(data.main?.temp ?? 0);
+  const tUnit   = unit === 'imperial' ? '華氏' : '度';
+  const humid   = data.main?.humidity ?? '—';
+  const wind    = data.wind?.speed ?? 0;
+  const windUnit = unit === 'imperial' ? 'マイル毎時' : 'メートル毎秒';
+  const text = city + '、' + country + 'の天気をお知らせします。' +
+    '現在の天気は' + desc + 'です。' +
+    '気温は' + temp + tUnit + '。' +
+    '湿度' + humid + 'パーセント。' +
+    '風速' + wind + windUnit + 'です。';
+  const utt = new SpeechSynthesisUtterance(text);
+  utt.lang  = 'ja-JP';
+  utt.rate  = 0.9;
+  utt.onend = () => { if (btn) btn.textContent = '🔊'; };
+  window.speechSynthesis.speak(utt);
 }
 
 // ===== オートコンプリート =====
@@ -292,6 +429,10 @@ function renderWeather(data, unit) {
 
   generateAdvice(data, unit);
   showResult(true);
+
+  currentWeatherData = { data, unit };
+  currentCity = data.name || '';
+  updateFavBtn(currentCity);
 
   // Gemini AI アドバイス
   renderGeminiAdvice(data, unit);
@@ -567,12 +708,14 @@ async function getWeatherByCity(cityRaw) {
       showError('「' + city + '」は見つかりませんでした。別の都市名をお試しください。'); return;
     }
     const { lat, lon } = geo.data[0];
+    lastCoords = { lat, lon };
     setLoading(true, '天気データを取得しています...');
     const w = await fetchJson(
       'https://api.openweathermap.org/data/2.5/weather?lat=' + lat + '&lon=' + lon + '&appid=' + WEATHER_API_KEY + '&units=' + unit + '&lang=ja'
     );
     if (!w.ok || w.data?.cod !== 200) { showError('天気情報の取得に失敗しました。'); return; }
     renderWeather(w.data, unit);
+    fetchAndRenderForecast(lat, lon, unit);
     saveHistory(city);
     setShareLink(city);
     fetchAndRenderNews(currentCategory);
@@ -591,12 +734,14 @@ async function getWeatherByGeo() {
     try {
       const unit = unitSelect.value;
       const { latitude: lat, longitude: lon } = pos.coords;
+      lastCoords = { lat, lon };
       setLoading(true, '天気データを取得しています...');
       const w = await fetchJson(
         'https://api.openweathermap.org/data/2.5/weather?lat=' + lat + '&lon=' + lon + '&appid=' + WEATHER_API_KEY + '&units=' + unit + '&lang=ja'
       );
       if (!w.ok || w.data?.cod !== 200) { showError('現在地の天気取得に失敗しました。'); return; }
       renderWeather(w.data, unit);
+      fetchAndRenderForecast(lat, lon, unit);
       if (w.data?.name) { saveHistory(w.data.name); setShareLink(w.data.name); }
       fetchAndRenderNews(currentCategory);
     } catch { showError('通信エラーが発生しました。'); }
@@ -735,6 +880,8 @@ function escHtml(str) {
 }
 
 // ===== イベントリスナー =====
+document.getElementById('fav-btn').addEventListener('click', () => { if (currentCity) toggleFavorite(currentCity); });
+document.getElementById('voice-btn').addEventListener('click', speakWeather);
 searchBtn.addEventListener('click', () => getWeatherByCity());
 cityInput.addEventListener('keydown', e => { if (e.key === 'Enter') getWeatherByCity(); });
 cityInput.addEventListener('input',  e => renderAC(e.target.value));
@@ -764,6 +911,7 @@ newsTabs.querySelectorAll('.news-tab').forEach(tab => {
   const savedUnit = localStorage.getItem(LS.unit);
   if (savedUnit === 'metric' || savedUnit === 'imperial') applyUnit(savedUnit);
   renderHistory();
+  renderFavorites();
   fetchAndRenderNews('general');
   const urlCity = new URL(location.href).searchParams.get('city');
   if (urlCity) { cityInput.value = urlCity; getWeatherByCity(urlCity); }

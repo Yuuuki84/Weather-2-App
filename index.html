@@ -888,6 +888,59 @@
     }
     .ai-error { font-size: 13px; color: var(--text2); font-style: italic; }
 
+    /* ===== FAVORITES ===== */
+    .favorites-label {
+      font-size: 11px; font-weight: 700; letter-spacing: .06em;
+      text-transform: uppercase; color: var(--text2);
+      margin-bottom: 6px; margin-top: 16px;
+    }
+    .fav-chip {
+      background: linear-gradient(135deg, rgba(251,191,36,0.12), rgba(251,191,36,0.06));
+      border-color: rgba(251,191,36,0.3);
+      color: var(--text);
+    }
+    .fav-chip:hover { border-color: #fbbf24; }
+
+    /* ===== HOURLY FORECAST ===== */
+    .hourly-section { margin-bottom: 16px; }
+    .hourly-strip-wrap {
+      overflow-x: auto; padding-bottom: 4px;
+      scrollbar-width: thin; scrollbar-color: var(--border2) transparent;
+    }
+    .hourly-strip { display: flex; gap: 8px; padding: 16px; min-width: max-content; }
+    .hourly-item {
+      display: flex; flex-direction: column; align-items: center; gap: 4px;
+      padding: 12px 14px; border-radius: var(--radius2);
+      background: var(--surface); border: 1px solid var(--border);
+      min-width: 72px; transition: border-color .2s, transform .15s;
+    }
+    .hourly-item:hover { border-color: var(--border2); transform: translateY(-2px); }
+    .hourly-time { font-size: 12px; font-weight: 700; color: var(--text2); }
+    .hourly-item img { width: 36px; height: 36px; }
+    .hourly-temp { font-size: 14px; font-weight: 700; }
+    .hourly-rain { font-size: 11px; color: #60a5fa; font-weight: 600; min-height: 14px; }
+
+    /* ===== WEEKLY FORECAST ===== */
+    .weekly-section { margin-bottom: 16px; }
+    .weekly-grid {
+      display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px;
+    }
+    .weekly-card {
+      padding: 14px 10px; border-radius: var(--radius2);
+      background: var(--surface); border: 1px solid var(--border);
+      display: flex; flex-direction: column; align-items: center; gap: 6px;
+      transition: border-color .2s, transform .15s; text-align: center;
+    }
+    .weekly-card:hover { border-color: var(--border2); transform: translateY(-2px); }
+    .weekly-day { font-size: 12px; font-weight: 700; color: var(--text2); line-height: 1.3; }
+    .weekly-card img { width: 42px; height: 42px; }
+    .weekly-temps { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: center; }
+    .weekly-max { font-size: 14px; font-weight: 700; }
+    .weekly-min { font-size: 12px; color: var(--text2); }
+    .weekly-pop { font-size: 11px; color: #60a5fa; font-weight: 600; }
+    @media (max-width: 860px) { .weekly-grid { grid-template-columns: repeat(3, 1fr); } }
+    @media (max-width: 560px) { .weekly-grid { grid-template-columns: repeat(3, 1fr); } }
+
   </style>
 </head>
 
@@ -930,6 +983,12 @@
     <!-- History chips -->
     <div id="history" class="chips"></div>
 
+    <!-- Favorites -->
+    <div id="favorites-section" style="display:none;">
+      <div class="favorites-label">⭐ お気に入り都市</div>
+      <div id="favorites-box" class="chips"></div>
+    </div>
+
     <!-- Status / Error -->
     <div class="status-bar" id="status">
       <div class="spinner"></div>
@@ -960,7 +1019,11 @@
         </div>
         <div class="share-row">
           <span id="temp-min-max" style="font-size:13px;"></span>
-          <a class="share-link" id="share-link" href="#">🔗 この検索を共有</a>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <button class="btn icon-btn" id="fav-btn" title="お気に入りに追加" style="font-size:16px;">☆</button>
+            <button class="btn icon-btn" id="voice-btn" title="音声読み上げ" style="font-size:16px;">🔊</button>
+            <a class="share-link" id="share-link" href="#">🔗 この検索を共有</a>
+          </div>
         </div>
       </div>
 
@@ -1026,6 +1089,21 @@
         </div>
       </div>
 
+      <!-- Hourly Forecast (24h) -->
+      <div class="hourly-section" id="hourly-section" style="display:none;">
+        <div class="section-title">🕐 24時間予報</div>
+        <div class="card">
+          <div class="hourly-strip-wrap">
+            <div class="hourly-strip" id="hourly-strip"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Weekly Forecast -->
+      <div class="weekly-section" id="weekly-section" style="display:none;">
+        <div class="section-title">📅 週間予報</div>
+        <div class="weekly-grid" id="weekly-grid"></div>
+      </div>
 
       <!-- Weather Advice -->
       <div class="advice-section" id="advice-section" style="display:none;">
