@@ -738,12 +738,10 @@ function renderAdvice(advices) {
 }
 
 // ===== Gemini AI アドバイス =====
-// 無料枠で利用可能なモデルを優先順に列挙
+// 無料枠で利用可能なモデルを優先順に列挙（404確認済みモデルは除外）
 const GEMINI_MODELS = [
   'gemini-2.0-flash-lite',  // 無料枠あり・軽量（優先）
   'gemini-2.0-flash',       // 無料枠あり（1500 req/日）
-  'gemini-1.5-flash',       // 安定版フォールバック
-  'gemini-1.5-flash-8b',    // 軽量安定版フォールバック
 ];
 function geminiUrl(model) {
   return 'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + GEMINI_API_KEY;
@@ -768,6 +766,14 @@ function geminiCacheKey(cityName) {
 function getGeminiCache(cityName) {
   try { return localStorage.getItem(geminiCacheKey(cityName)) || null; }
   catch { return null; }
+}
+// 当スロット以外も含む古いキャッシュを検索（429フォールバック用）
+function getGeminiStaleCache(cityName) {
+  try {
+    const prefix = 'gemini_advice_' + cityName + '_';
+    const key = Object.keys(localStorage).find(k => k.startsWith(prefix));
+    return key ? localStorage.getItem(key) : null;
+  } catch { return null; }
 }
 function setGeminiCache(cityName, text) {
   try {
@@ -796,7 +802,7 @@ async function fetchGeminiAdvice(data, unit) {
   const cached = getGeminiCache(city);
   if (cached) {
     console.log('[Gemini] キャッシュ使用 slot=' + geminiTimeSlot() + ' city=' + city);
-    return cached;
+    return { text: cached, stale: false };
   }
 
   const prompt =
@@ -837,7 +843,13 @@ async function fetchGeminiAdvice(data, unit) {
     if (!text) throw new Error('レスポンス空');
     console.log('[Gemini] 成功 model=' + model);
     setGeminiCache(city, text.trim());
-    return text.trim();
+    return { text: text.trim(), stale: false };
+  }
+  // 全モデル失敗 → 古いスロットのキャッシュをフォールバック表示
+  const staleText = getGeminiStaleCache(city);
+  if (staleText) {
+    console.log('[Gemini] 旧キャッシュをフォールバック使用 city=' + city);
+    return { text: staleText, stale: true };
   }
   throw lastErr ?? new Error('全モデル失敗');
 }
@@ -850,16 +862,18 @@ async function renderGeminiAdvice(data, unit) {
   section.style.display = 'block';
   body.innerHTML = '<div class="ai-loading-dots"><span></span><span></span><span></span></div>';
   try {
-    const text = await fetchGeminiAdvice(data, unit);
-    body.innerHTML = '<div class="ai-text">' + escHtml(text) + '</div>';
+    const result = await fetchGeminiAdvice(data, unit);
+    if (result.stale) {
+      body.innerHTML =
+        '<div class="ai-text" style="opacity:0.75;">' + escHtml(result.text) + '</div>' +
+        '<div class="ai-error" style="margin-top:6px;font-size:12px;">※ APIの取得制限中のため前回取得時のアドバイスを表示しています。次のスロット（8/12/16/20時）に更新されます。</div>';
+    } else {
+      body.innerHTML = '<div class="ai-text">' + escHtml(result.text) + '</div>';
+    }
   } catch(e) {
     console.error('[Gemini]', e);
-    const msg = String(e.message || '');
-    const display = msg.includes('429')
-      ? 'AIアドバイスの取得制限に達しました。次のスロット（8/12/16/20時）に自動更新されます。'
-      : 'AIアドバイスを取得できませんでした。';
     body.innerHTML =
-      '<div class="ai-error">' + display + '</div>' +
+      '<div class="ai-error">AIアドバイスを取得できませんでした。しばらく時間をおいてから再試行してください。</div>' +
       '<button class="btn" id="ai-retry-btn" style="margin-top:8px;font-size:13px;">再試行</button>';
     const retryBtn = document.getElementById('ai-retry-btn');
     if (retryBtn) retryBtn.addEventListener('click', () => renderGeminiAdvice(data, unit));
