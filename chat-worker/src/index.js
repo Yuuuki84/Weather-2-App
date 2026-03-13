@@ -1,10 +1,9 @@
 // ===== Luna & Elma Chat Worker =====
-// Cloudflare Workers バックエンド
-// 必要な Secrets: GEMINI_API_KEY
+// Cloudflare Workers バックエンド（Workers AI 使用）
 // 環境変数 (wrangler.toml vars): ALLOWED_ORIGIN
+// AI バインディング (wrangler.toml [ai]): AI
 
-const GEMINI_URL =
-  'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=';
+const AI_MODEL = '@cf/meta/llama-3.1-8b-instruct';
 
 const SYSTEM_PROMPT =
   'あなたは「Luna & Elma」という天気・ニュースアプリの親しみやすいAIアシスタントです。' +
@@ -35,7 +34,7 @@ export default {
       const { message, history = [], city, weather } = await request.json();
       if (!message?.trim()) return jsonRes({ error: 'message が必要です' }, 400, origin);
 
-      const reply = await callGemini(message, history, city, weather, env.GEMINI_API_KEY);
+      const reply = await callWorkersAI(message, history, city, weather, env.AI);
       return jsonRes({ reply }, 200, origin);
     } catch (e) {
       console.error(e);
@@ -44,52 +43,30 @@ export default {
   },
 };
 
-async function callGemini(message, history, city, weather, apiKey) {
-  if (!apiKey) throw new Error('GEMINI_API_KEY が未設定です');
+async function callWorkersAI(message, history, city, weather, ai) {
+  if (!ai) throw new Error('AI binding が未設定です（wrangler.toml に [ai] binding = "AI" を追加してください）');
 
   // 天気コンテキスト
   const weatherCtx = city && weather
     ? `\n\n【現在の天気情報】\n都市: ${city}\n天気: ${weather.desc}\n気温: ${weather.temp}℃\n体感: ${weather.feels}℃\n湿度: ${weather.humid}%\n風速: ${weather.wind}m/s`
     : '';
 
-  // 会話履歴（最大10ターン）
-  const contents = [];
+  const messages = [
+    { role: 'system', content: SYSTEM_PROMPT + weatherCtx },
+    // 会話履歴（最大10ターン、role は user/assistant に変換）
+    ...history.slice(-10).map(t => ({
+      role: t.role === 'user' ? 'user' : 'assistant',
+      content: t.content,
+    })),
+    { role: 'user', content: message },
+  ];
 
-  // システムプロンプトを最初のユーザーメッセージに埋め込む
-  const sysWithCtx = SYSTEM_PROMPT + weatherCtx;
-
-  // 履歴を追加（先頭はシステムプロンプト付きのユーザーメッセージ）
-  history.slice(-10).forEach((turn, i) => {
-    if (i === 0) {
-      contents.push({ role: 'user', parts: [{ text: sysWithCtx + '\n\n' + turn.content }] });
-    } else {
-      contents.push({ role: turn.role === 'user' ? 'user' : 'model', parts: [{ text: turn.content }] });
-    }
+  const response = await ai.run(AI_MODEL, {
+    messages,
+    max_tokens: 350,
   });
 
-  // 今回のメッセージ
-  if (contents.length === 0) {
-    contents.push({ role: 'user', parts: [{ text: sysWithCtx + '\n\n' + message }] });
-  } else {
-    contents.push({ role: 'user', parts: [{ text: message }] });
-  }
-
-  const res = await fetch(GEMINI_URL + apiKey, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents,
-      generationConfig: { temperature: 0.8, maxOutputTokens: 350 },
-    }),
-  });
-
-  if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    throw new Error('Gemini HTTP ' + res.status + ': ' + body.slice(0, 100));
-  }
-
-  const json = await res.json();
-  const text = json.candidates?.[0]?.content?.parts?.[0]?.text;
+  const text = response.response;
   if (!text) throw new Error('空のレスポンスが返りました');
   return text.trim();
 }

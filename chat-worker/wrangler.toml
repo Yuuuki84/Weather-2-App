@@ -3,4 +3,7 @@ main = "src/index.js"
 compatibility_date = "2025-01-01"
 
 [vars]
-ALLOWED_ORIGIN = "https://yuuuki84.github.io"
+ALLOWED_ORIGIN = "*"
+
+[ai]
+binding = "AI"
