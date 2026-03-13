@@ -459,6 +459,21 @@ function checkWeatherAlert(data, unit) {
 // ===== 音声読み上げ（Google Cloud Text-to-Speech） =====
 let ttsAudio = null; // 再生中の Audio インスタンス
 
+// 音声キャッシュ（テキストをキーに base64 音声データを sessionStorage に保存）
+function getTtsCache(text) {
+  try { return sessionStorage.getItem('tts_' + text) || null; }
+  catch { return null; }
+}
+function setTtsCache(text, base64) {
+  try {
+    // 古いキャッシュを削除して容量を節約
+    Object.keys(sessionStorage)
+      .filter(k => k.startsWith('tts_') && k !== 'tts_' + text)
+      .forEach(k => sessionStorage.removeItem(k));
+    sessionStorage.setItem('tts_' + text, base64);
+  } catch { /* 容量不足時は無視 */ }
+}
+
 function buildWeatherText(data, unit) {
   const city     = data.name ?? '';
   const country  = data.sys?.country ?? '';
@@ -505,24 +520,32 @@ async function speakWeather() {
   const text = buildWeatherText(data, unit);
 
   try {
-    const res = await fetch(
-      'https://texttospeech.googleapis.com/v1/text:synthesize?key=' + GOOGLE_TTS_KEY,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          input: { text },
-          voice: { languageCode: 'ja-JP', name: 'ja-JP-Neural2-B' },
-          audioConfig: { audioEncoding: 'MP3', speakingRate: 0.95 },
-        }),
-        signal: timeoutSignal(15000),
-      }
-    );
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const json = await res.json();
-    if (!json.audioContent) throw new Error('音声データなし');
+    // キャッシュ確認（同一テキストなら API を叩かない）
+    let audioBase64 = getTtsCache(text);
+    if (audioBase64) {
+      console.log('[TTS] キャッシュ使用');
+    } else {
+      const res = await fetch(
+        'https://texttospeech.googleapis.com/v1/text:synthesize?key=' + GOOGLE_TTS_KEY,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            input: { text },
+            voice: { languageCode: 'ja-JP', name: 'ja-JP-Neural2-B' },
+            audioConfig: { audioEncoding: 'MP3', speakingRate: 0.95 },
+          }),
+          signal: timeoutSignal(15000),
+        }
+      );
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const json = await res.json();
+      if (!json.audioContent) throw new Error('音声データなし');
+      audioBase64 = json.audioContent;
+      setTtsCache(text, audioBase64);
+    }
 
-    ttsAudio = new Audio('data:audio/mp3;base64,' + json.audioContent);
+    ttsAudio = new Audio('data:audio/mp3;base64,' + audioBase64);
     ttsAudio.onended = () => {
       ttsAudio = null;
       if (btn) { btn.textContent = '🔊'; btn.disabled = false; }
