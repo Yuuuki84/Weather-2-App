@@ -87,7 +87,8 @@ async function fetchGNews(category, apiKey) {
   if (!apiKey) return { error: 'GNEWS_API_KEY が未設定です' };
   let apiUrl;
   if (category === 'pet') {
-    apiUrl = `https://gnews.io/api/v4/search?q=%E3%83%9A%E3%83%83%E3%83%88+%E7%8A%AC+%E7%8C%AB&lang=ja&country=jp&max=10&token=${apiKey}`;
+    const q = encodeURIComponent('ペット 犬 猫');
+    apiUrl = `https://gnews.io/api/v4/search?q=${q}&lang=ja&max=10&token=${apiKey}`;
   } else {
     const cat = GNEWS_CATEGORY[category] || 'general';
     apiUrl = `https://gnews.io/api/v4/top-headlines?category=${cat}&lang=ja&country=jp&max=10&token=${apiKey}`;
