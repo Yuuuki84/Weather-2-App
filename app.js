@@ -1100,7 +1100,7 @@ async function getWeatherByGeo() {
   }, { enableHighAccuracy: false, timeout: 8000 });
 }
 
-// ===== ニュース（Yahoo Japan RSS + rss2json） =====
+// ===== ニュース（Google News RSS） =====
 
 const CATEGORY_LABEL = {
   general:'トップ', technology:'テクノロジー', science:'サイエンス',
@@ -1108,15 +1108,16 @@ const CATEGORY_LABEL = {
   pet:'ペット🐩',
 };
 
+const GN = 'https://news.google.com/rss';
 const RSS_FEEDS = {
-  general:       'https://news.yahoo.co.jp/rss/topics/top-picks.xml',    // トップ
-  technology:    'https://news.yahoo.co.jp/rss/topics/it.xml',           // IT・科学
-  science:       'https://news.yahoo.co.jp/rss/topics/it.xml',           // IT・科学
-  sports:        'https://news.yahoo.co.jp/rss/topics/sports.xml',       // スポーツ
-  entertainment: 'https://news.yahoo.co.jp/rss/topics/entertainment.xml',// エンタメ
-  health:        'https://news.yahoo.co.jp/rss/topics/health.xml',       // 健康
-  business:      'https://news.yahoo.co.jp/rss/topics/business.xml',     // 経済
-  pet:           'https://news.google.com/rss/search?q=%E3%83%9A%E3%83%83%E3%83%88+%E7%8A%AC+%E7%8C%AB&hl=ja&gl=JP&ceid=JP:ja', // ペット（Google News）
+  general:       GN + '?hl=ja&gl=JP&ceid=JP:ja',
+  technology:    GN + '/search?q=%E3%83%86%E3%82%AF%E3%83%8E%E3%83%AD%E3%82%B8%E3%83%BC+IT&hl=ja&gl=JP&ceid=JP:ja',
+  science:       GN + '/search?q=%E7%A7%91%E5%AD%A6+%E7%A0%94%E7%A9%B6&hl=ja&gl=JP&ceid=JP:ja',
+  sports:        GN + '/search?q=%E3%82%B9%E3%83%9D%E3%83%BC%E3%83%84&hl=ja&gl=JP&ceid=JP:ja',
+  entertainment: GN + '/search?q=%E3%82%A8%E3%83%B3%E3%82%BF%E3%83%A1+%E8%8A%B8%E8%83%BD&hl=ja&gl=JP&ceid=JP:ja',
+  health:        GN + '/search?q=%E5%81%A5%E5%BA%B7+%E5%8C%BB%E7%99%82&hl=ja&gl=JP&ceid=JP:ja',
+  business:      GN + '/search?q=%E3%83%93%E3%82%B8%E3%83%8D%E3%82%B9+%E7%B5%8C%E6%B8%88&hl=ja&gl=JP&ceid=JP:ja',
+  pet:           GN + '/search?q=%E3%83%9A%E3%83%83%E3%83%88+%E7%8A%AC+%E7%8C%AB&hl=ja&gl=JP&ceid=JP:ja',
 };
 
 const newsCache = {};
