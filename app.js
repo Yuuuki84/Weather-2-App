@@ -1,11 +1,11 @@
 // ===================================================
 //  Luna & Elma 天気 & ニュースアプリ  —  app.js
-//  天気: OpenWeatherMap  |  ニュース: GNews API（日本語）  |  犬の写真: Dog CEO API
+//  天気: OpenWeatherMap  |  ニュース: Yahoo Japan RSS + rss2json  |  犬の写真: Dog CEO API
 // ===================================================
 
 // ===== APIキー =====
 // キーは config.js で定義されています（.gitignore により非公開）
-// WEATHER_API_KEY / GEMINI_API_KEY / GNEWS_API_KEY
+// WEATHER_API_KEY / GEMINI_API_KEY
 
 // ===== 保存キー =====
 const LS = {
@@ -599,53 +599,50 @@ async function getWeatherByGeo() {
   }, { enableHighAccuracy: false, timeout: 8000 });
 }
 
-// ===== ニュース（GNews API — 日本語） =====
-// GNEWS_API_KEY は config.js で定義
+// ===== ニュース（Yahoo Japan RSS + rss2json） =====
 
 const CATEGORY_LABEL = {
   general:'トップ', technology:'テクノロジー', science:'サイエンス',
   sports:'スポーツ', entertainment:'エンタメ', health:'ヘルス', business:'ビジネス',
 };
 
-// GNews APIのカテゴリマップ
-const GNEWS_CATEGORY_MAP = {
-  general:'general', technology:'technology', science:'science',
-  sports:'sports', entertainment:'entertainment', health:'health', business:'business',
+const RSS_FEEDS = {
+  general:       'https://news.yahoo.co.jp/rss/topics/top-picks.xml',
+  technology:    'https://news.yahoo.co.jp/rss/topics/it.xml',
+  science:       'https://news.yahoo.co.jp/rss/topics/science.xml',
+  sports:        'https://news.yahoo.co.jp/rss/topics/sports.xml',
+  entertainment: 'https://news.yahoo.co.jp/rss/topics/entertainment.xml',
+  health:        'https://news.yahoo.co.jp/rss/topics/life.xml',
+  business:      'https://news.yahoo.co.jp/rss/topics/business.xml',
 };
 
 const newsCache = {};
 const CACHE_TTL = 15 * 60 * 1000;
 
-async function fetchGNews(category) {
-  const cacheKey = category;
+async function fetchRSSNews(category) {
   const now = Date.now();
-  if (newsCache[cacheKey] && (now - newsCache[cacheKey].ts) < CACHE_TTL) return newsCache[cacheKey].articles;
+  if (newsCache[category] && (now - newsCache[category].ts) < CACHE_TTL) return newsCache[category].articles;
 
-  const topic = GNEWS_CATEGORY_MAP[category] || 'general';
-  const gnewsUrl = 'https://gnews.io/api/v4/top-headlines?category=' + topic +
-    '&lang=ja&country=jp&max=20&apikey=' + GNEWS_API_KEY;
-  const url = 'https://corsproxy.io/?' + encodeURIComponent(gnewsUrl);
+  const rssUrl = RSS_FEEDS[category] || RSS_FEEDS.general;
+  const apiUrl = 'https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent(rssUrl) + '&count=20';
 
-  const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
-  if (!res.ok) {
-    const errText = await res.text().catch(() => '');
-    throw new Error('HTTP ' + res.status + (errText ? ': ' + errText.slice(0,80) : ''));
-  }
+  const res = await fetch(apiUrl, { signal: AbortSignal.timeout(15000) });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
   const data = await res.json();
-  if (data.errors) throw new Error(data.errors.join(', '));
+  if (data.status !== 'ok') throw new Error(data.message || 'RSS取得エラー');
 
-  const articles = (data.articles || []).map(a => ({
+  const articles = (data.items || []).map(a => ({
     title:       a.title || '',
     description: a.description || '',
-    url:         a.url || '',
-    image:       a.image || '',
-    source:      a.source?.name || '—',
+    url:         a.link || '',
+    image:       a.thumbnail || '',
+    source:      data.feed?.title || 'Yahoo! Japan ニュース',
     sourceIcon:  '',
-    publishedAt: a.publishedAt || '',
+    publishedAt: a.pubDate || '',
     lang:        'ja',
   }));
 
-  newsCache[cacheKey] = { ts: now, articles };
+  newsCache[category] = { ts: now, articles };
   return articles;
 }
 
@@ -653,19 +650,12 @@ async function fetchAndRenderNews(category) {
   renderNewsSkeleton();
   const label = CATEGORY_LABEL[category] || category;
   try {
-    const articles = await fetchGNews(category);
+    const articles = await fetchRSSNews(category);
     if (articles.length > 0) { renderNewsCards(articles, label); return; }
     showNewsMessage('📭', '「' + label + '」の記事が見つかりませんでした', 'しばらく後にお試しください。');
   } catch(e) {
-    const msg = String(e.message || e);
-    // 無料プラン上限に達した場合の案内
-    if (msg.includes('403') || msg.toLowerCase().includes('quota') || msg.toLowerCase().includes('limit')) {
-      showNewsMessage('📋', 'GNews 本日の取得上限に達しました',
-        '無料プランは1日100件まで。明日リセットされます。<br><small style="opacity:.7">gnews.io</small>');
-    } else {
-      showNewsMessage('⚠️', 'ニュースの取得に失敗しました',
-        msg + '<br><small style="opacity:.7">GNews API (gnews.io)</small>');
-    }
+    showNewsMessage('⚠️', 'ニュースの取得に失敗しました',
+      String(e.message || e) + '<br><small style="opacity:.7">Yahoo! Japan ニュース (RSS)</small>');
   }
 }
 
