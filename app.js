@@ -56,6 +56,8 @@ let mapOverlayLayer   = null;
 let mapMarker         = null;
 let notificationsEnabled = false;
 let lastNotifiedKey   = '';
+let autoRefreshTimer  = null;
+const AUTO_REFRESH_MS = 10 * 60 * 1000; // 10分
 
 // ===== ユーティリティ =====
 // iOS 15 以前では AbortSignal.timeout() 未対応のため互換ラッパーを使用
@@ -1030,6 +1032,7 @@ async function getWeatherByCity(cityRaw) {
     if (w.status === 429) { showError('APIリクエスト制限中です。しばらく待ってから再試行してください。'); return; }
     if (!w.ok || w.data?.cod !== 200) { showError('天気情報の取得に失敗しました（HTTP ' + w.status + '）。'); return; }
     renderWeather(w.data, unit);
+    startAutoRefresh();
     saveHistory(city);
     setShareLink(city);
     fetchAndRenderForecast(lat, lon, unit);
@@ -1058,6 +1061,7 @@ async function getWeatherByGeo() {
       if (w.status === 429) { showError('APIリクエスト制限中です。しばらく待ってから再試行してください。'); return; }
       if (!w.ok || w.data?.cod !== 200) { showError('現在地の天気取得に失敗しました（HTTP ' + w.status + '）。'); return; }
       renderWeather(w.data, unit);
+      startAutoRefresh();
       if (w.data?.name) { saveHistory(w.data.name); setShareLink(w.data.name); }
       fetchAndRenderForecast(lat, lon, unit);
       setTimeout(() => initOrUpdateMap(lat, lon), 500);
@@ -1257,6 +1261,26 @@ document.getElementById('map-layer-btns')?.querySelectorAll('.map-layer-btn').fo
     setMapLayer(btn.dataset.layer);
   });
 });
+
+// ===== 自動リロード =====
+async function autoRefreshWeather() {
+  if (!lastCoords) return;
+  const unit = unitSelect.value;
+  try {
+    const w = await fetchJson(
+      'https://api.openweathermap.org/data/2.5/weather?lat=' + lastCoords.lat + '&lon=' + lastCoords.lon +
+      '&appid=' + WEATHER_API_KEY + '&units=' + unit + '&lang=ja'
+    );
+    if (!w.ok || w.data?.cod !== 200) return;
+    renderWeather(w.data, unit);
+    fetchAndRenderForecast(lastCoords.lat, lastCoords.lon, unit);
+  } catch { /* 自動更新失敗は無視 */ }
+}
+
+function startAutoRefresh() {
+  if (autoRefreshTimer) clearInterval(autoRefreshTimer);
+  autoRefreshTimer = setInterval(autoRefreshWeather, AUTO_REFRESH_MS);
+}
 
 // ===== 初期化 =====
 (function init() {
