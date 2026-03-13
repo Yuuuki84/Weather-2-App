@@ -1100,7 +1100,7 @@ async function getWeatherByGeo() {
   }, { enableHighAccuracy: false, timeout: 8000 });
 }
 
-// ===== ニュース（Google News RSS） =====
+// ===== ニュース（GNews API） =====
 
 const CATEGORY_LABEL = {
   general:'トップ', technology:'テクノロジー', science:'サイエンス',
@@ -1108,44 +1108,42 @@ const CATEGORY_LABEL = {
   pet:'ペット🐩',
 };
 
-const GN = 'https://news.google.com/rss';
-const RSS_FEEDS = {
-  general:       GN + '?hl=ja&gl=JP&ceid=JP:ja',
-  technology:    GN + '/search?q=%E3%83%86%E3%82%AF%E3%83%8E%E3%83%AD%E3%82%B8%E3%83%BC+IT&hl=ja&gl=JP&ceid=JP:ja',
-  science:       GN + '/search?q=%E7%A7%91%E5%AD%A6+%E7%A0%94%E7%A9%B6&hl=ja&gl=JP&ceid=JP:ja',
-  sports:        GN + '/search?q=%E3%82%B9%E3%83%9D%E3%83%BC%E3%83%84&hl=ja&gl=JP&ceid=JP:ja',
-  entertainment: GN + '/search?q=%E3%82%A8%E3%83%B3%E3%82%BF%E3%83%A1+%E8%8A%B8%E8%83%BD&hl=ja&gl=JP&ceid=JP:ja',
-  health:        GN + '/search?q=%E5%81%A5%E5%BA%B7+%E5%8C%BB%E7%99%82&hl=ja&gl=JP&ceid=JP:ja',
-  business:      GN + '/search?q=%E3%83%93%E3%82%B8%E3%83%8D%E3%82%B9+%E7%B5%8C%E6%B8%88&hl=ja&gl=JP&ceid=JP:ja',
-  pet:           GN + '/search?q=%E3%83%9A%E3%83%83%E3%83%88+%E7%8A%AC+%E7%8C%AB&hl=ja&gl=JP&ceid=JP:ja',
+// GNews API カテゴリマッピング（pet は検索エンドポイントを使用）
+const GNEWS_CATEGORY = {
+  general: 'general', technology: 'technology', science: 'science',
+  sports: 'sports', entertainment: 'entertainment', health: 'health', business: 'business',
 };
 
 const newsCache = {};
 const CACHE_TTL = 15 * 60 * 1000;
 
-// rss2json.com 経由で RSS を JSON に変換して取得
-async function fetchRSSNews(category) {
+async function fetchGNews(category) {
   const now = Date.now();
   if (newsCache[category] && (now - newsCache[category].ts) < CACHE_TTL) return newsCache[category].articles;
 
-  const rssUrl = RSS_FEEDS[category] || RSS_FEEDS.general;
-  const apiUrl = 'https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent(rssUrl) + '&count=20';
+  if (!GNEWS_API_KEY || GNEWS_API_KEY === 'YOUR_GNEWS_API_KEY') throw new Error('APIキー未設定');
+
+  let apiUrl;
+  if (category === 'pet') {
+    apiUrl = 'https://gnews.io/api/v4/search?q=%E3%83%9A%E3%83%83%E3%83%88+%E7%8A%AC+%E7%8C%AB&lang=ja&country=jp&max=10&token=' + GNEWS_API_KEY;
+  } else {
+    const cat = GNEWS_CATEGORY[category] || 'general';
+    apiUrl = 'https://gnews.io/api/v4/top-headlines?category=' + cat + '&lang=ja&country=jp&max=10&token=' + GNEWS_API_KEY;
+  }
 
   const res = await fetch(apiUrl, { signal: timeoutSignal(20000) });
   if (!res.ok) throw new Error('HTTP ' + res.status);
   const data = await res.json();
-  if (data.status !== 'ok' || !Array.isArray(data.items)) throw new Error(data.message || 'データ取得失敗');
+  if (!Array.isArray(data.articles)) throw new Error(data.errors?.[0] || 'データ取得失敗');
 
-  const feedTitle = data.feed?.title || 'Google ニュース';
-
-  const articles = data.items.map(item => ({
+  const articles = data.articles.map(item => ({
     title:       item.title?.trim() || '',
-    description: item.description?.replace(/<[^>]*>/g, '').trim() || '',
-    url:         item.link || item.guid || '',
-    image:       item.thumbnail || item.enclosure?.link || '',
-    source:      item.author || feedTitle,
+    description: item.description?.trim() || '',
+    url:         item.url || '',
+    image:       item.image || '',
+    source:      item.source?.name || 'GNews',
     sourceIcon:  '',
-    publishedAt: item.pubDate || '',
+    publishedAt: item.publishedAt || '',
     lang:        'ja',
   }));
 
@@ -1163,12 +1161,12 @@ async function fetchAndRenderNews(category) {
   }
   renderNewsSkeleton();
   try {
-    const articles = await fetchRSSNews(category);
+    const articles = await fetchGNews(category);
     if (articles.length > 0) { renderNewsCards(articles, label); return; }
     showNewsMessage('📭', '「' + label + '」の記事が見つかりませんでした', 'しばらく後にお試しください。');
   } catch(e) {
     showNewsMessage('⚠️', 'ニュースの取得に失敗しました',
-      String(e.message || e) + '<br><small style="opacity:.7">Google ニュース (rss2json)</small>');
+      String(e.message || e) + '<br><small style="opacity:.7">GNews API</small>');
   }
 }
 
