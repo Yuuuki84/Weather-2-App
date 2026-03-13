@@ -226,7 +226,7 @@ function renderHourlyForecast(fd, unit) {
       '<div class="hourly-time">' + unixToTime(item.dt, tz) + '</div>' +
       '<img src="https://openweathermap.org/img/wn/' + icon + '.png" alt="' + escHtml(desc) + '" title="' + escHtml(desc) + '">' +
       '<div class="hourly-temp">' + fmtTemp(item.main?.temp, unit) + '</div>' +
-      '<div class="hourly-rain">' + (pop > 0 ? '💧' + pop + '%' : '') + '</div>' +
+      '<div class="hourly-pop">' + (pop > 0 ? '<span class="pop-pill" style="--p:' + pop + '%">' + pop + '%</span>' : '') + '</div>' +
     '</div>';
   }).join('');
   section.style.display = 'block';
@@ -263,7 +263,7 @@ function renderWeeklyForecast(fd, unit) {
         '<span class="weekly-max">' + Math.round(maxT) + tUnit + '</span>' +
         '<span class="weekly-min">' + Math.round(minT) + tUnit + '</span>' +
       '</div>' +
-      (maxPop > 0 ? '<div class="weekly-pop">💧' + maxPop + '%</div>' : '') +
+      (maxPop > 0 ? '<div class="weekly-pop"><span class="pop-pill" style="--p:' + maxPop + '%">' + maxPop + '%</span></div>' : '') +
     '</div>';
   }).join('');
   section.style.display = 'block';
@@ -272,9 +272,14 @@ function renderWeeklyForecast(fd, unit) {
 // ===== 音声読み上げ =====
 function speakWeather() {
   if (!window.speechSynthesis) { showError('このブラウザは音声読み上げに対応していません。'); return; }
-  if (!currentWeatherData) return;
-  window.speechSynthesis.cancel();
   const btn = document.getElementById('voice-btn');
+  // 読み上げ中なら停止
+  if (window.speechSynthesis.speaking) {
+    window.speechSynthesis.cancel();
+    if (btn) btn.textContent = '🔊';
+    return;
+  }
+  if (!currentWeatherData) return;
   if (btn) btn.textContent = '🔇';
   const { data, unit } = currentWeatherData;
   const city    = data.name ?? '';
@@ -400,7 +405,10 @@ function renderWeather(data, unit) {
   safeText('weather-desc', desc);
   const _tVal  = (data.main?.temp != null && !isNaN(data.main.temp)) ? Math.round(data.main.temp) : '—';
   const _tUnit = unit === 'imperial' ? '℉' : '℃';
-  safeHTML('temperature', '<span class="temp-num">' + _tVal + '</span><span class="temp-unit">' + _tUnit + '</span>');
+  const _tempC = data.main?.temp != null ? (unit === 'imperial' ? (data.main.temp - 32) * 5/9 : data.main.temp) : null;
+  const _tColor = _tempC == null ? '' : _tempC <= 10 ? '#60a5fa' : _tempC >= 20 ? '#fb923c' : '';
+  const _tStyle = _tColor ? ' style="-webkit-text-fill-color:' + _tColor + ';background:none;color:' + _tColor + ';"' : '';
+  safeHTML('temperature', '<span class="temp-num"' + _tStyle + '>' + _tVal + '</span><span class="temp-unit">' + _tUnit + '</span>');
   safeText('feels-like',  '体感温度 ' + fmtTemp(data.main?.feels_like, unit));
   safeText('temp-min-max','最低 ' + fmtTemp(data.main?.temp_min, unit) + ' / 最高 ' + fmtTemp(data.main?.temp_max, unit));
 
