@@ -3,12 +3,14 @@
 // 環境変数 (wrangler.toml vars): ALLOWED_ORIGIN
 // AI バインディング (wrangler.toml [ai]): AI
 
-const AI_MODEL = '@cf/mistral/mistral-7b-instruct-v0.1';
+const AI_MODEL = '@cf/qwen/qwen1.5-7b-chat-awq';
 
 const SYSTEM_PROMPT =
-  'あなたは「Luna & Elma」という天気・ニュースアプリの親しみやすいAIアシスタントです。' +
-  'ユーザーの天気・ニュース・日常の質問に丁寧かつ明るい口調で答えてください。' +
-  '返答は200文字以内を目安に、簡潔にまとめてください。箇条書きは使わず自然な文章で。';
+  'あなたは「Luna & Elma」という天気・ニュースアプリの明るいAIアシスタントです。' +
+  '必ず自然な日本語で、フレンドリーかつ丁寧に答えてください。' +
+  '天気データが提供された場合は、数値をそのまま読み上げるのではなく、' +
+  '「今日は寒いですね」「風が強めです」のように感覚的な言葉を使ってください。' +
+  '返答は150〜200文字程度で、箇条書きは使わず自然な会話文で書いてください。';
 
 export default {
   async fetch(request, env) {
