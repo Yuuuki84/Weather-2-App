@@ -604,6 +604,7 @@ async function getWeatherByGeo() {
 const CATEGORY_LABEL = {
   general:'トップ', technology:'テクノロジー', science:'サイエンス',
   sports:'スポーツ', entertainment:'エンタメ', health:'ヘルス', business:'ビジネス',
+  pet:'ペット🐩',
 };
 
 const RSS_FEEDS = {
@@ -614,6 +615,7 @@ const RSS_FEEDS = {
   entertainment: 'https://www3.nhk.or.jp/rss/news/cat0.xml',  // 主要
   health:        'https://www3.nhk.or.jp/rss/news/cat1.xml',  // 社会
   business:      'https://www3.nhk.or.jp/rss/news/cat4.xml',  // 経済
+  pet:           'https://mofmo.jp/article/rss',              // ペット（mofmo）
 };
 
 const newsCache = {};
