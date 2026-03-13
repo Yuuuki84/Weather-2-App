@@ -117,12 +117,16 @@ function tempColorStyle(tempVal, unit) {
   return col ? ' style="color:' + col + ';"' : '';
 }
 
-async function fetchJson(url, ms = 10000) {
+async function fetchJson(url, ms = 12000) {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), ms);
   try {
     const res  = await fetch(url, { signal: ctrl.signal });
-    const data = await res.json();
+    if (res.status === 429) {
+      return { ok: false, status: 429, data: null };
+    }
+    let data = null;
+    try { data = await res.json(); } catch { data = null; }
     return { ok: res.ok, status: res.status, data };
   } finally {
     clearTimeout(t);
@@ -216,14 +220,16 @@ function setShareLink(city) {
 
 // ===== 予報（24h・週間） =====
 async function fetchAndRenderForecast(lat, lon, unit) {
-  const r = await fetchJson(
-    'https://api.openweathermap.org/data/2.5/forecast?lat=' + lat + '&lon=' + lon +
-    '&appid=' + WEATHER_API_KEY + '&units=' + unit + '&lang=ja&cnt=40'
-  );
-  if (!r.ok || !r.data?.list) return;
-  renderHourlyForecast(r.data, unit);
-  renderWeeklyForecast(r.data, unit);
-  renderTempChart(r.data, unit);
+  try {
+    const r = await fetchJson(
+      'https://api.openweathermap.org/data/2.5/forecast?lat=' + lat + '&lon=' + lon +
+      '&appid=' + WEATHER_API_KEY + '&units=' + unit + '&lang=ja&cnt=40'
+    );
+    if (!r.ok || !r.data?.list) return;
+    renderHourlyForecast(r.data, unit);
+    renderWeeklyForecast(r.data, unit);
+    renderTempChart(r.data, unit);
+  } catch { /* 予報取得失敗は無視（メイン天気は表示済み） */ }
 }
 
 function renderHourlyForecast(fd, unit) {
@@ -890,6 +896,7 @@ async function getWeatherByCity(cityRaw) {
     const geo = await fetchJson(
       'https://api.openweathermap.org/geo/1.0/direct?q=' + encodeURIComponent(city) + '&limit=1&appid=' + WEATHER_API_KEY
     );
+    if (geo.status === 429) { showError('APIリクエスト制限中です。しばらく待ってから再試行してください。'); return; }
     if (!geo.ok) { showError('都市検索に失敗しました（HTTP ' + geo.status + '）'); return; }
     if (!Array.isArray(geo.data) || !geo.data.length) {
       showError('「' + city + '」は見つかりませんでした。別の都市名をお試しください。'); return;
@@ -900,15 +907,16 @@ async function getWeatherByCity(cityRaw) {
     const w = await fetchJson(
       'https://api.openweathermap.org/data/2.5/weather?lat=' + lat + '&lon=' + lon + '&appid=' + WEATHER_API_KEY + '&units=' + unit + '&lang=ja'
     );
-    if (!w.ok || w.data?.cod !== 200) { showError('天気情報の取得に失敗しました。'); return; }
+    if (w.status === 429) { showError('APIリクエスト制限中です。しばらく待ってから再試行してください。'); return; }
+    if (!w.ok || w.data?.cod !== 200) { showError('天気情報の取得に失敗しました（HTTP ' + w.status + '）。'); return; }
     renderWeather(w.data, unit);
-    fetchAndRenderForecast(lat, lon, unit);
-    initOrUpdateMap(lat, lon);
     saveHistory(city);
     setShareLink(city);
+    fetchAndRenderForecast(lat, lon, unit);
+    setTimeout(() => initOrUpdateMap(lat, lon), 500);
     fetchAndRenderNews(currentCategory);
   } catch(e) {
-    if (String(e).includes('Abort')) showError('通信がタイムアウトしました。ネットワークをご確認ください。');
+    if (String(e).includes('Abort') || String(e).includes('abort')) showError('通信がタイムアウトしました。ネットワークをご確認ください。');
     else showError('通信エラーが発生しました。ネットワークをご確認ください。');
   } finally { setLoading(false); }
 }
@@ -927,13 +935,17 @@ async function getWeatherByGeo() {
       const w = await fetchJson(
         'https://api.openweathermap.org/data/2.5/weather?lat=' + lat + '&lon=' + lon + '&appid=' + WEATHER_API_KEY + '&units=' + unit + '&lang=ja'
       );
-      if (!w.ok || w.data?.cod !== 200) { showError('現在地の天気取得に失敗しました。'); return; }
+      if (w.status === 429) { showError('APIリクエスト制限中です。しばらく待ってから再試行してください。'); return; }
+      if (!w.ok || w.data?.cod !== 200) { showError('現在地の天気取得に失敗しました（HTTP ' + w.status + '）。'); return; }
       renderWeather(w.data, unit);
-      fetchAndRenderForecast(lat, lon, unit);
-      initOrUpdateMap(lat, lon);
       if (w.data?.name) { saveHistory(w.data.name); setShareLink(w.data.name); }
+      fetchAndRenderForecast(lat, lon, unit);
+      setTimeout(() => initOrUpdateMap(lat, lon), 500);
       fetchAndRenderNews(currentCategory);
-    } catch { showError('通信エラーが発生しました。'); }
+    } catch(e) {
+      if (String(e).includes('Abort') || String(e).includes('abort')) showError('通信がタイムアウトしました。ネットワークをご確認ください。');
+      else showError('通信エラーが発生しました。');
+    }
     finally  { setLoading(false); }
   }, () => {
     setLoading(false);
