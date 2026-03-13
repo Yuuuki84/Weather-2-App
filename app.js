@@ -1146,10 +1146,9 @@ async function getWeatherByGeo() {
 const CATEGORY_LABEL = {
   general:'トップ', technology:'テクノロジー', science:'サイエンス',
   sports:'スポーツ', entertainment:'エンタメ', health:'ヘルス', business:'ビジネス',
-  pet:'ペット🐩',
 };
 
-// GNews API カテゴリマッピング（pet は検索エンドポイントを使用）
+// GNews API カテゴリマッピング
 const GNEWS_CATEGORY = {
   general: 'general', technology: 'technology', science: 'science',
   sports: 'sports', entertainment: 'entertainment', health: 'health', business: 'business',
