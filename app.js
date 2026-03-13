@@ -624,21 +624,27 @@ async function fetchRSSNews(category) {
   if (newsCache[category] && (now - newsCache[category].ts) < CACHE_TTL) return newsCache[category].articles;
 
   const rssUrl = RSS_FEEDS[category] || RSS_FEEDS.general;
-  const apiUrl = 'https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent(rssUrl) + '&count=20';
+  const proxyUrl = 'https://api.allorigins.win/get?url=' + encodeURIComponent(rssUrl);
 
-  const res = await fetch(apiUrl, { signal: AbortSignal.timeout(15000) });
+  const res = await fetch(proxyUrl, { signal: AbortSignal.timeout(15000) });
   if (!res.ok) throw new Error('HTTP ' + res.status);
   const data = await res.json();
-  if (data.status !== 'ok') throw new Error(data.message || 'RSS取得エラー');
+  if (!data.contents) throw new Error('コンテンツ取得失敗');
 
-  const articles = (data.items || []).map(a => ({
-    title:       a.title || '',
-    description: a.description || '',
-    url:         a.link || '',
-    image:       a.thumbnail || '',
-    source:      data.feed?.title || 'NHK ニュース',
+  const xml = new DOMParser().parseFromString(data.contents, 'text/xml');
+  const items = Array.from(xml.querySelectorAll('item'));
+  if (!items.length) throw new Error('記事が見つかりませんでした');
+
+  const feedTitle = xml.querySelector('channel > title')?.textContent || 'NHK ニュース';
+
+  const articles = items.slice(0, 20).map(item => ({
+    title:       item.querySelector('title')?.textContent?.trim() || '',
+    description: item.querySelector('description')?.textContent?.replace(/<[^>]*>/g, '').trim() || '',
+    url:         item.querySelector('link')?.textContent?.trim() || item.querySelector('guid')?.textContent?.trim() || '',
+    image:       item.querySelector('enclosure')?.getAttribute('url') || '',
+    source:      feedTitle,
     sourceIcon:  '',
-    publishedAt: a.pubDate || '',
+    publishedAt: item.querySelector('pubDate')?.textContent || '',
     lang:        'ja',
   }));
 
