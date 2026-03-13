@@ -47,6 +47,14 @@ let particleAnim    = null;
 let pCtx            = null;
 
 // ===== ユーティリティ =====
+// iOS 15 以前では AbortSignal.timeout() 未対応のため互換ラッパーを使用
+function timeoutSignal(ms) {
+  if (typeof AbortSignal.timeout === 'function') return AbortSignal.timeout(ms);
+  const ctrl = new AbortController();
+  setTimeout(() => ctrl.abort(), ms);
+  return ctrl.signal;
+}
+
 function setLoading(on, text = '読み込み中...') {
   statusBar.classList.toggle('show', on);
   statusText.textContent = text;
@@ -442,7 +450,7 @@ async function fetchGeminiAdvice(data, unit) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body,
-      signal: AbortSignal.timeout(15000),
+      signal: timeoutSignal(15000),
     });
     if (!res.ok) {
       const errBody = await res.text().catch(() => '');
@@ -628,7 +636,7 @@ async function fetchRSSNews(category) {
   const rssUrl = RSS_FEEDS[category] || RSS_FEEDS.general;
   const proxyUrl = 'https://api.allorigins.win/get?url=' + encodeURIComponent(rssUrl);
 
-  const res = await fetch(proxyUrl, { signal: AbortSignal.timeout(15000) });
+  const res = await fetch(proxyUrl, { signal: timeoutSignal(15000) });
   if (!res.ok) throw new Error('HTTP ' + res.status);
   const data = await res.json();
   if (!data.contents) throw new Error('コンテンツ取得失敗');
