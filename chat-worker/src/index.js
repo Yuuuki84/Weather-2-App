@@ -3,7 +3,7 @@
 // 環境変数 (wrangler.toml vars): ALLOWED_ORIGIN
 // AI バインディング (wrangler.toml [ai]): AI
 
-const AI_MODEL = '@cf/meta/llama-3.2-3b-instruct';
+const AI_MODEL = '@cf/meta/llama-3.1-8b-instruct';
 
 const SYSTEM_PROMPT =
   'あなたは「Luna & Elma」という天気・ニュースアプリの明るいAIアシスタントです。' +
