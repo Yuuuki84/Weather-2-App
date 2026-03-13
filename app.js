@@ -607,13 +607,13 @@ const CATEGORY_LABEL = {
 };
 
 const RSS_FEEDS = {
-  general:       'https://news.yahoo.co.jp/rss/topics/top-picks.xml',
-  technology:    'https://news.yahoo.co.jp/rss/topics/it.xml',
-  science:       'https://news.yahoo.co.jp/rss/topics/science.xml',
-  sports:        'https://news.yahoo.co.jp/rss/topics/sports.xml',
-  entertainment: 'https://news.yahoo.co.jp/rss/topics/entertainment.xml',
-  health:        'https://news.yahoo.co.jp/rss/topics/life.xml',
-  business:      'https://news.yahoo.co.jp/rss/topics/business.xml',
+  general:       'https://www3.nhk.or.jp/rss/news/cat0.xml',  // 主要ニュース
+  technology:    'https://www3.nhk.or.jp/rss/news/cat3.xml',  // 科学・文化
+  science:       'https://www3.nhk.or.jp/rss/news/cat3.xml',  // 科学・文化
+  sports:        'https://www3.nhk.or.jp/rss/news/cat7.xml',  // スポーツ
+  entertainment: 'https://www3.nhk.or.jp/rss/news/cat0.xml',  // 主要（エンタメ枠）
+  health:        'https://www3.nhk.or.jp/rss/news/cat1.xml',  // 社会
+  business:      'https://www3.nhk.or.jp/rss/news/cat4.xml',  // 経済
 };
 
 const newsCache = {};
@@ -636,7 +636,7 @@ async function fetchRSSNews(category) {
     description: a.description || '',
     url:         a.link || '',
     image:       a.thumbnail || '',
-    source:      data.feed?.title || 'Yahoo! Japan ニュース',
+    source:      data.feed?.title || 'NHK ニュース',
     sourceIcon:  '',
     publishedAt: a.pubDate || '',
     lang:        'ja',
@@ -655,7 +655,7 @@ async function fetchAndRenderNews(category) {
     showNewsMessage('📭', '「' + label + '」の記事が見つかりませんでした', 'しばらく後にお試しください。');
   } catch(e) {
     showNewsMessage('⚠️', 'ニュースの取得に失敗しました',
-      String(e.message || e) + '<br><small style="opacity:.7">Yahoo! Japan ニュース (RSS)</small>');
+      String(e.message || e) + '<br><small style="opacity:.7">NHK ニュース (RSS)</small>');
   }
 }
 
