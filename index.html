@@ -899,6 +899,43 @@
       transition: color .15s, border-color .15s;
     }
     .chat-clear-btn:hover { color: var(--red); border-color: var(--red); }
+
+    /* ===== VOLUME SLIDER ===== */
+    .volume-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--text2);
+    }
+    .volume-icon { font-size: 15px; flex-shrink: 0; }
+    #volume-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 90px;
+      height: 4px;
+      border-radius: 2px;
+      background: var(--border2);
+      outline: none;
+      cursor: pointer;
+      accent-color: var(--accent);
+    }
+    #volume-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      background: var(--accent);
+      cursor: pointer;
+      box-shadow: 0 0 0 3px rgba(99,102,241,0.20);
+    }
+    #volume-slider::-moz-range-thumb {
+      width: 14px; height: 14px;
+      border: none;
+      border-radius: 50%;
+      background: var(--accent);
+      cursor: pointer;
+    }
+    #volume-label { font-size: 12px; font-weight: 700; min-width: 28px; text-align: right; }
     /* チャットメッセージ一覧 */
     .chat-messages {
       max-height: 320px;
@@ -1217,6 +1254,11 @@
           <div style="display:flex;gap:8px;align-items:center;">
             <button class="btn icon-btn" id="fav-btn" title="お気に入りに追加" style="font-size:16px;">☆</button>
             <button class="btn icon-btn" id="voice-btn" title="音声読み上げ" style="font-size:16px;">🔊</button>
+            <div class="volume-row">
+              <span class="volume-icon">🔈</span>
+              <input type="range" id="volume-slider" min="0" max="100" value="80" title="音量" />
+              <span id="volume-label">80%</span>
+            </div>
             <a class="share-link" id="share-link" href="#">🔗 この検索を共有</a>
           </div>
         </div>

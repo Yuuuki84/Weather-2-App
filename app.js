@@ -15,6 +15,7 @@ const LS = {
   favorites: 'sora_favorites',
   category:  'sora_news_category',
   chat:      'sora_chat_history',
+  volume:    'sora_volume',
 };
 
 // ===== 人気都市（オートコンプリート候補） =====
@@ -505,6 +506,11 @@ function checkWeatherAlert(data, unit) {
 // ===== 音声読み上げ（Google Cloud Text-to-Speech） =====
 let ttsAudio = null; // 再生中の Audio インスタンス
 
+function getVolume() {
+  const v = parseFloat(localStorage.getItem(LS.volume));
+  return isNaN(v) ? 0.8 : Math.min(1, Math.max(0, v));
+}
+
 // 音声キャッシュ（テキストをキーに base64 音声データを sessionStorage に保存）
 function getTtsCache(text) {
   try { return sessionStorage.getItem('tts_' + text) || null; }
@@ -592,6 +598,7 @@ async function speakWeather() {
     }
 
     ttsAudio = new Audio('data:audio/mp3;base64,' + audioBase64);
+    ttsAudio.volume = getVolume();
     ttsAudio.onended = () => {
       ttsAudio = null;
       if (btn) { btn.textContent = '🔊'; btn.disabled = false; }
@@ -619,6 +626,7 @@ function _speakFallback() {
   const utt = new SpeechSynthesisUtterance(text);
   utt.lang = 'ja-JP';
   utt.rate = 0.9;
+  utt.volume = getVolume();
   utt.onend = () => { if (btn) btn.textContent = '🔊'; };
   window.speechSynthesis.speak(utt);
 }
@@ -1258,6 +1266,31 @@ function escHtml(str) {
 // ===== イベントリスナー =====
 document.getElementById('fav-btn').addEventListener('click', () => { if (currentCity) toggleFavorite(currentCity); });
 document.getElementById('voice-btn').addEventListener('click', speakWeather);
+
+// ===== 音量スライダー =====
+(function initVolumeSlider() {
+  const slider = document.getElementById('volume-slider');
+  const label  = document.getElementById('volume-label');
+  if (!slider || !label) return;
+  const saved = localStorage.getItem(LS.volume);
+  const pct   = saved != null ? Math.round(parseFloat(saved) * 100) : 80;
+  slider.value = pct;
+  label.textContent = pct + '%';
+  // ボリュームアイコンを音量に合わせる
+  const updateIcon = v => {
+    const icon = document.querySelector('.volume-icon');
+    if (icon) icon.textContent = v === 0 ? '🔇' : v < 40 ? '🔈' : v < 70 ? '🔉' : '🔊';
+  };
+  updateIcon(pct);
+  slider.addEventListener('input', () => {
+    const v = parseInt(slider.value, 10);
+    label.textContent = v + '%';
+    updateIcon(v);
+    localStorage.setItem(LS.volume, (v / 100).toFixed(2));
+    // 再生中なら即時反映
+    if (ttsAudio && !ttsAudio.paused) ttsAudio.volume = v / 100;
+  });
+})();
 searchBtn.addEventListener('click', () => getWeatherByCity());
 cityInput.addEventListener('keydown', e => { if (e.key === 'Enter') getWeatherByCity(); });
 cityInput.addEventListener('input',  e => renderAC(e.target.value));
