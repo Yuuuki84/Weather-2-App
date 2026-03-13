@@ -955,8 +955,35 @@
     .map-layer-btn.active { background: linear-gradient(135deg, var(--accent), #4f46e5); border-color: transparent; color: white; }
     #weather-map { height: 320px; border-radius: 12px; overflow: hidden; position: relative; z-index: 0; }
 
+    /* ===== HOURLY SECTION TITLE ===== */
+    .hourly-section .section-title { font-family: 'Meiryo UI', 'Meiryo', sans-serif; }
+
     /* ===== NOTIFICATION BTN ===== */
     .notif-btn-off { opacity: 0.45; }
+
+    /* ===== TEMP LEGEND ===== */
+    #map-temp-legend {
+      margin-top: 12px;
+      padding: 10px 14px;
+      border-radius: var(--radius2);
+      background: var(--surface2);
+      border: 1px solid var(--border);
+    }
+    .temp-legend-title {
+      font-size: 11px; font-weight: 700; letter-spacing: .06em;
+      text-transform: uppercase; color: var(--text2); margin-bottom: 8px;
+    }
+    .temp-legend-bar {
+      height: 12px; border-radius: 6px; margin-bottom: 4px;
+      background: linear-gradient(to right,
+        #821692 0%, #0000ff 18%, #00b0ff 33%,
+        #00ff00 50%, #ffff00 62%, #ff8000 75%,
+        #ff0000 88%, #7f0000 100%);
+    }
+    .temp-legend-labels {
+      display: flex; justify-content: space-between;
+      font-size: 10px; color: var(--text2); font-weight: 600;
+    }
 
     /* ===== PRECIPITATION PILL ===== */
     .hourly-pop { min-height: 20px; display: flex; align-items: center; justify-content: center; }
@@ -1170,6 +1197,15 @@
             <button class="btn map-layer-btn" data-layer="wind_new">💨 風</button>
           </div>
           <div id="weather-map"></div>
+          <div id="map-temp-legend" style="display:none;">
+            <div class="temp-legend-title">🌡 気温の目安（℃）</div>
+            <div class="temp-legend-bar"></div>
+            <div class="temp-legend-labels">
+              <span>-40</span><span>-20</span><span>-10</span>
+              <span>0</span><span>10</span><span>20</span>
+              <span>30</span><span>40+</span>
+            </div>
+          </div>
         </div>
       </div>
 

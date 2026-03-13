@@ -396,6 +396,8 @@ function setMapLayer(layerName) {
     'https://tile.openweathermap.org/map/' + layerName + '/{z}/{x}/{y}.png?appid=' + WEATHER_API_KEY,
     { opacity: 0.65, attribution: '© OpenWeatherMap' }
   ).addTo(leafletMap);
+  const legend = document.getElementById('map-temp-legend');
+  if (legend) legend.style.display = layerName === 'temp_new' ? 'block' : 'none';
 }
 
 // ===== 天気アラート通知 =====
@@ -997,8 +999,14 @@ async function fetchRSSNews(category) {
 }
 
 async function fetchAndRenderNews(category) {
-  renderNewsSkeleton();
   const label = CATEGORY_LABEL[category] || category;
+  // キャッシュが有効なら即描画（スケルトンを出さない）
+  const cached = newsCache[category];
+  if (cached && (Date.now() - cached.ts) < CACHE_TTL) {
+    renderNewsCards(cached.articles, label);
+    return;
+  }
+  renderNewsSkeleton();
   try {
     const articles = await fetchRSSNews(category);
     if (articles.length > 0) { renderNewsCards(articles, label); return; }
