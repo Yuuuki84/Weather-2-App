@@ -1123,54 +1123,29 @@ const RSS_FEEDS = {
 const newsCache = {};
 const CACHE_TTL = 15 * 60 * 1000;
 
-// RSS プロキシ（allorigins 失敗時は corsproxy.io にフォールバック）
-async function fetchRSSViaProxy(rssUrl) {
-  const proxies = [
-    'https://api.allorigins.win/get?url=' + encodeURIComponent(rssUrl),
-    'https://corsproxy.io/?' + encodeURIComponent(rssUrl),
-  ];
-  let lastErr;
-  for (const proxyUrl of proxies) {
-    try {
-      const res = await fetch(proxyUrl, { signal: timeoutSignal(20000) });
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      // allorigins は { contents: "..." }、corsproxy.io は直接テキストを返す
-      const text = proxyUrl.includes('allorigins')
-        ? (await res.json()).contents
-        : await res.text();
-      if (!text) throw new Error('コンテンツ取得失敗');
-      return text;
-    } catch(e) {
-      console.warn('[RSS] プロキシ失敗:', proxyUrl, e.message);
-      lastErr = e;
-    }
-  }
-  throw lastErr ?? new Error('全プロキシ失敗');
-}
-
+// rss2json.com 経由で RSS を JSON に変換して取得
 async function fetchRSSNews(category) {
   const now = Date.now();
   if (newsCache[category] && (now - newsCache[category].ts) < CACHE_TTL) return newsCache[category].articles;
 
   const rssUrl = RSS_FEEDS[category] || RSS_FEEDS.general;
-  const contents = await fetchRSSViaProxy(rssUrl);
+  const apiUrl = 'https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent(rssUrl) + '&count=20';
 
-  const xml = new DOMParser().parseFromString(contents, 'text/xml');
-  const items = Array.from(xml.querySelectorAll('item'));
-  if (!items.length) throw new Error('記事が見つかりませんでした');
+  const res = await fetch(apiUrl, { signal: timeoutSignal(20000) });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const data = await res.json();
+  if (data.status !== 'ok' || !Array.isArray(data.items)) throw new Error(data.message || 'データ取得失敗');
 
-  const feedTitle = xml.querySelector('channel > title')?.textContent || 'Yahoo ニュース';
+  const feedTitle = data.feed?.title || 'Google ニュース';
 
-  const articles = items.slice(0, 20).map(item => ({
-    title:       item.querySelector('title')?.textContent?.trim() || '',
-    description: item.querySelector('description')?.textContent?.replace(/<[^>]*>/g, '').trim() || '',
-    url:         item.querySelector('link')?.textContent?.trim() || item.querySelector('guid')?.textContent?.trim() || '',
-    image:       item.getElementsByTagName('media:content')[0]?.getAttribute('url') ||
-                 item.getElementsByTagName('media:thumbnail')[0]?.getAttribute('url') ||
-                 item.querySelector('enclosure')?.getAttribute('url') || '',
-    source:      feedTitle,
+  const articles = data.items.map(item => ({
+    title:       item.title?.trim() || '',
+    description: item.description?.replace(/<[^>]*>/g, '').trim() || '',
+    url:         item.link || item.guid || '',
+    image:       item.thumbnail || item.enclosure?.link || '',
+    source:      item.author || feedTitle,
     sourceIcon:  '',
-    publishedAt: item.querySelector('pubDate')?.textContent || '',
+    publishedAt: item.pubDate || '',
     lang:        'ja',
   }));
 
@@ -1193,7 +1168,7 @@ async function fetchAndRenderNews(category) {
     showNewsMessage('📭', '「' + label + '」の記事が見つかりませんでした', 'しばらく後にお試しください。');
   } catch(e) {
     showNewsMessage('⚠️', 'ニュースの取得に失敗しました',
-      String(e.message || e) + '<br><small style="opacity:.7">Yahoo ニュース (RSS)</small>');
+      String(e.message || e) + '<br><small style="opacity:.7">Google ニュース (rss2json)</small>');
   }
 }
 
