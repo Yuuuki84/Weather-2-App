@@ -454,35 +454,96 @@ function checkWeatherAlert(data, unit) {
   });
 }
 
-// ===== 音声読み上げ =====
-function speakWeather() {
-  if (!window.speechSynthesis) { showError('このブラウザは音声読み上げに対応していません。'); return; }
-  const btn = document.getElementById('voice-btn');
-  // 読み上げ中なら停止
-  if (window.speechSynthesis.speaking) {
-    window.speechSynthesis.cancel();
-    if (btn) btn.textContent = '🔊';
-    return;
-  }
-  if (!currentWeatherData) return;
-  if (btn) btn.textContent = '🔇';
-  const { data, unit } = currentWeatherData;
-  const city    = data.name ?? '';
-  const country = data.sys?.country ?? '';
-  const desc    = data.weather?.[0]?.description ?? '';
-  const temp    = Math.round(data.main?.temp ?? 0);
-  const tUnit   = unit === 'imperial' ? '華氏' : '度';
-  const humid   = data.main?.humidity ?? '—';
-  const wind    = data.wind?.speed ?? 0;
+// ===== 音声読み上げ（Google Cloud Text-to-Speech） =====
+let ttsAudio = null; // 再生中の Audio インスタンス
+
+function buildWeatherText(data, unit) {
+  const city     = data.name ?? '';
+  const country  = data.sys?.country ?? '';
+  const desc     = data.weather?.[0]?.description ?? '';
+  const temp     = Math.round(data.main?.temp ?? 0);
+  const tUnit    = unit === 'imperial' ? '華氏' : '度';
+  const humid    = data.main?.humidity ?? '—';
+  const wind     = data.wind?.speed ?? 0;
   const windUnit = unit === 'imperial' ? 'マイル毎時' : 'メートル毎秒';
-  const text = city + '、' + country + 'の天気をお知らせします。' +
+  return city + '、' + country + 'の天気をお知らせします。' +
     '現在の天気は' + desc + 'です。' +
     '気温は' + temp + tUnit + '。' +
     '湿度' + humid + 'パーセント。' +
     '風速' + wind + windUnit + 'です。';
+}
+
+async function speakWeather() {
+  const btn = document.getElementById('voice-btn');
+
+  // 再生中なら停止
+  if (ttsAudio && !ttsAudio.paused) {
+    ttsAudio.pause();
+    ttsAudio.currentTime = 0;
+    ttsAudio = null;
+    if (btn) btn.textContent = '🔊';
+    return;
+  }
+
+  if (!currentWeatherData) return;
+  if (!GOOGLE_TTS_KEY || GOOGLE_TTS_KEY === 'YOUR_GOOGLE_CLOUD_TTS_API_KEY') {
+    // APIキー未設定時は Web Speech API にフォールバック
+    _speakFallback();
+    return;
+  }
+
+  if (btn) { btn.textContent = '🔇'; btn.disabled = true; }
+
+  const { data, unit } = currentWeatherData;
+  const text = buildWeatherText(data, unit);
+
+  try {
+    const res = await fetch(
+      'https://texttospeech.googleapis.com/v1/text:synthesize?key=' + GOOGLE_TTS_KEY,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          input: { text },
+          voice: { languageCode: 'ja-JP', name: 'ja-JP-Neural2-B' },
+          audioConfig: { audioEncoding: 'MP3', speakingRate: 0.95 },
+        }),
+        signal: timeoutSignal(15000),
+      }
+    );
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const json = await res.json();
+    if (!json.audioContent) throw new Error('音声データなし');
+
+    ttsAudio = new Audio('data:audio/mp3;base64,' + json.audioContent);
+    ttsAudio.onended = () => {
+      ttsAudio = null;
+      if (btn) { btn.textContent = '🔊'; btn.disabled = false; }
+    };
+    ttsAudio.onerror = () => {
+      ttsAudio = null;
+      if (btn) { btn.textContent = '🔊'; btn.disabled = false; }
+    };
+    if (btn) btn.disabled = false;
+    ttsAudio.play();
+  } catch(e) {
+    console.error('[TTS]', e);
+    if (btn) { btn.textContent = '🔊'; btn.disabled = false; }
+    // Google TTS 失敗時は Web Speech API にフォールバック
+    _speakFallback();
+  }
+}
+
+function _speakFallback() {
+  if (!window.speechSynthesis) { showError('音声読み上げに対応していません。'); return; }
+  const btn = document.getElementById('voice-btn');
+  if (!currentWeatherData) return;
+  const { data, unit } = currentWeatherData;
+  const text = buildWeatherText(data, unit);
+  if (btn) btn.textContent = '🔇';
   const utt = new SpeechSynthesisUtterance(text);
-  utt.lang  = 'ja-JP';
-  utt.rate  = 0.9;
+  utt.lang = 'ja-JP';
+  utt.rate = 0.9;
   utt.onend = () => { if (btn) btn.textContent = '🔊'; };
   window.speechSynthesis.speak(utt);
 }
