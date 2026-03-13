@@ -748,6 +748,36 @@ function geminiUrl(model) {
   return 'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + GEMINI_API_KEY;
 }
 
+// ===== Gemini アドバイスキャッシュ（8時/12時/16時/20時スロット） =====
+function geminiTimeSlot() {
+  const h = new Date().getHours();
+  if (h < 8)  return '00'; // 深夜〜早朝（前日20時スロット扱い）
+  if (h < 12) return '08';
+  if (h < 16) return '12';
+  if (h < 20) return '16';
+  return '20';
+}
+function geminiCacheKey(cityName) {
+  const d = new Date();
+  const date = d.getFullYear() + '-' +
+    String(d.getMonth() + 1).padStart(2, '0') + '-' +
+    String(d.getDate()).padStart(2, '0');
+  return 'gemini_advice_' + cityName + '_' + date + '_' + geminiTimeSlot();
+}
+function getGeminiCache(cityName) {
+  try { return localStorage.getItem(geminiCacheKey(cityName)) || null; }
+  catch { return null; }
+}
+function setGeminiCache(cityName, text) {
+  try {
+    // 古いキャッシュを削除（gemini_advice_ プレフィックスのみ）
+    Object.keys(localStorage)
+      .filter(k => k.startsWith('gemini_advice_') && k !== geminiCacheKey(cityName))
+      .forEach(k => localStorage.removeItem(k));
+    localStorage.setItem(geminiCacheKey(cityName), text);
+  } catch { /* localStorage 容量不足時は無視 */ }
+}
+
 async function fetchGeminiAdvice(data, unit) {
   const toC = v => unit === 'imperial' && v != null ? Math.round((v - 32) * 5 / 9) : Math.round(v ?? 0);
   const tempC   = toC(data.main?.temp);
@@ -760,6 +790,13 @@ async function fetchGeminiAdvice(data, unit) {
   const clouds  = data.clouds?.all ?? 0;
   const rain    = data.rain?.['1h'] ?? 0;
   const snow    = data.snow?.['1h'] ?? 0;
+
+  // キャッシュ確認（同一都市・同一スロット内は API を叩かない）
+  const cached = getGeminiCache(city);
+  if (cached) {
+    console.log('[Gemini] キャッシュ使用 slot=' + geminiTimeSlot() + ' city=' + city);
+    return cached;
+  }
 
   const prompt =
     `あなたは天気アプリの親しみやすいAIアシスタントです。以下の天気データをもとに、ユーザーへの役立つアドバイスを日本語で提供してください。
@@ -788,19 +825,17 @@ async function fetchGeminiAdvice(data, unit) {
       signal: timeoutSignal(15000),
     });
     if (!res.ok) {
-      const errBody = await res.text().catch(() => '');
-      // errBodyにAPIキーが含まれる可能性があるためURLは出力しない
       console.error('[Gemini] model=' + model + ' HTTP ' + res.status);
-      lastErr = new Error('HTTP ' + res.status + ' (' + model + ') ' + errBody.slice(0, 120));
-      // 404 = モデル不存在、429 + limit:0 = 無料枠なし → どちらも次モデルを試す
-      const isRetryable = res.status === 404 || (res.status === 429 && errBody.includes('"limit": 0'));
-      if (!isRetryable) throw lastErr;
-      continue;
+      lastErr = new Error('HTTP ' + res.status + ' (' + model + ')');
+      // 404（モデル不存在）・429（制限）はいずれも次モデルを試す
+      if (res.status === 404 || res.status === 429) continue;
+      throw lastErr;
     }
     const json = await res.json();
     const text = json.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!text) throw new Error('レスポンス空');
     console.log('[Gemini] 成功 model=' + model);
+    setGeminiCache(city, text.trim());
     return text.trim();
   }
   throw lastErr ?? new Error('全モデル失敗');
@@ -820,9 +855,13 @@ async function renderGeminiAdvice(data, unit) {
     console.error('[Gemini]', e);
     const msg = String(e.message || '');
     const display = msg.includes('429')
-      ? 'リクエストが多すぎます。少し待ってから再度検索してください。'
+      ? 'AIアドバイスの取得制限に達しました。次のスロット（8/12/16/20時）に自動更新されます。'
       : 'AIアドバイスを取得できませんでした。';
-    body.innerHTML = '<div class="ai-error">' + display + '</div>';
+    body.innerHTML =
+      '<div class="ai-error">' + display + '</div>' +
+      '<button class="btn" id="ai-retry-btn" style="margin-top:8px;font-size:13px;">再試行</button>';
+    const retryBtn = document.getElementById('ai-retry-btn');
+    if (retryBtn) retryBtn.addEventListener('click', () => renderGeminiAdvice(data, unit));
   }
 }
 
