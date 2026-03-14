@@ -1167,6 +1167,120 @@
       border-radius: 0 0 999px 999px;
     }
 
+    /* ===== RAIN FORECAST BANNER ===== */
+    .rain-banner {
+      display: none;
+      align-items: center;
+      gap: 12px;
+      padding: 13px 18px;
+      border-radius: var(--radius2);
+      background: linear-gradient(135deg, rgba(59,130,246,0.10), rgba(14,165,233,0.06));
+      border: 1px solid rgba(59,130,246,0.30);
+      margin-top: 10px;
+      font-size: 14px;
+      color: var(--text);
+      animation: fadeUp .4s ease;
+    }
+    .rain-banner.show { display: flex; }
+    .rain-banner-icon { font-size: 24px; flex-shrink: 0; }
+    .rain-banner-text { flex: 1; line-height: 1.6; }
+    .rain-banner-close {
+      background: none; border: none; color: var(--text2);
+      cursor: pointer; font-size: 22px; padding: 0 4px; line-height: 1;
+      transition: color .15s;
+    }
+    .rain-banner-close:hover { color: var(--text); }
+
+    /* ===== SCROLL TO TOP ===== */
+    .scroll-top-btn {
+      position: fixed;
+      bottom: 28px; right: 24px;
+      width: 46px; height: 46px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), #4f46e5);
+      border: none; color: white; font-size: 20px;
+      cursor: pointer;
+      box-shadow: 0 4px 20px rgba(99,102,241,0.45);
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0; transform: translateY(12px);
+      transition: opacity .25s, transform .25s;
+      z-index: 1000; pointer-events: none;
+    }
+    .scroll-top-btn.visible { opacity: 1; transform: translateY(0); pointer-events: auto; }
+    .scroll-top-btn:hover { filter: brightness(1.15); transform: translateY(-3px); }
+
+    /* ===== NEWS READ STATE ===== */
+    .news-card.is-read { opacity: 0.38; }
+    .news-card.is-read:hover { opacity: 0.68; transition: opacity .2s; }
+    .news-read-badge {
+      font-size: 10px; font-weight: 700; padding: 1px 7px;
+      border-radius: 999px; background: var(--surface2);
+      border: 1px solid var(--border2); color: var(--text2);
+      letter-spacing: .04em;
+    }
+    .news-time { font-size: 11px; color: var(--text2); }
+    .news-filter-row { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+    .news-filter-btn {
+      padding: 5px 13px; font-size: 12px; border-radius: 999px;
+      border: 1px solid var(--border2); background: var(--surface2);
+      color: var(--text2); cursor: pointer; font-family: var(--font);
+      font-weight: 600; transition: all .15s;
+    }
+    .news-filter-btn.active { border-color: var(--accent); color: var(--accent2); background: rgba(99,102,241,0.10); }
+
+    /* ===== HISTORY CHIP WITH DELETE ===== */
+    .chip-wrap { display: inline-flex; align-items: center; }
+    .chip-del {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 18px; height: 18px; margin-left: 2px;
+      background: none; border: 1px solid var(--border2);
+      border-radius: 50%; color: var(--text2); font-size: 11px;
+      cursor: pointer; line-height: 1;
+      transition: color .15s, border-color .15s;
+    }
+    .chip-del:hover { color: var(--red); border-color: var(--red); }
+
+    /* ===== WEATHER ICON ANIMATION ===== */
+    body.wx-clear #weather-icon img {
+      animation: iconSunSpin 20s linear infinite;
+    }
+    @keyframes iconSunSpin {
+      from { transform: rotate(0deg); }
+      to   { transform: rotate(360deg); }
+    }
+    body.wx-rain #weather-icon img,
+    body.wx-thunder #weather-icon img {
+      animation: iconRainBounce 1.8s ease-in-out infinite;
+    }
+    @keyframes iconRainBounce {
+      0%,100% { transform: translateY(0); }
+      50%      { transform: translateY(-7px); }
+    }
+    body.wx-snow #weather-icon img {
+      animation: iconSnowFloat 3s ease-in-out infinite;
+    }
+    @keyframes iconSnowFloat {
+      0%,100% { transform: translateY(0) scale(1); }
+      50%      { transform: translateY(-5px) scale(1.05); }
+    }
+    body.wx-cloudy #weather-icon img {
+      animation: iconCloudDrift 5s ease-in-out infinite;
+    }
+    @keyframes iconCloudDrift {
+      0%,100% { transform: translateX(0); }
+      50%      { transform: translateX(5px); }
+    }
+
+    /* ===== ERROR RETRY BUTTON ===== */
+    .error-retry-btn {
+      margin-left: auto; padding: 4px 13px;
+      border: 1px solid rgba(248,113,113,0.4); border-radius: 999px;
+      background: none; color: #f87171; font-size: 12px; font-weight: 600;
+      cursor: pointer; transition: background .15s; white-space: nowrap;
+      font-family: var(--font); flex-shrink: 0;
+    }
+    .error-retry-btn:hover { background: rgba(248,113,113,0.10); }
+
   </style>
 </head>
 
@@ -1229,6 +1343,14 @@
     <div class="error-bar" id="error-msg">
       <span>⚠️</span>
       <span id="error-text"></span>
+      <button class="error-retry-btn" id="error-retry-btn" style="display:none;">再試行</button>
+    </div>
+
+    <!-- Rain Forecast Banner -->
+    <div class="rain-banner" id="rain-banner">
+      <span class="rain-banner-icon">🌧</span>
+      <span class="rain-banner-text"></span>
+      <button class="rain-banner-close" id="rain-banner-close" title="閉じる">×</button>
     </div>
 
     <!-- Weather Result -->
@@ -1404,6 +1526,12 @@
       <div class="section-title">
         📰 最新ニュース
         <span class="badge">GNews API</span>
+      </div>
+
+      <div class="news-filter-row">
+        <button class="news-filter-btn active" id="news-filter-all">すべて</button>
+        <button class="news-filter-btn" id="news-filter-unread">未読のみ</button>
+        <button class="news-filter-btn" id="news-filter-clear-read" title="既読をリセット">🗑 既読クリア</button>
       </div>
 
       <div class="news-tabs" id="news-tabs">

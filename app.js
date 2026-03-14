@@ -16,6 +16,7 @@ const LS = {
   category:  'sora_news_category',
   chat:      'sora_chat_history',
   volume:    'sora_volume',
+  newsRead:  'sora_news_read',
 };
 
 // ===== 人気都市（オートコンプリート候補） =====
@@ -76,11 +77,17 @@ function setLoading(on, text = '読み込み中...') {
   searchBtn.disabled = on;
   geoBtn.disabled    = on;
 }
-function showError(msg) {
+function showError(msg, retryable = true) {
   errorBar.classList.add('show');
   errorText.textContent = msg;
+  const retryBtn = document.getElementById('error-retry-btn');
+  if (retryBtn) retryBtn.style.display = retryable ? '' : 'none';
 }
-function clearError() { errorBar.classList.remove('show'); }
+function clearError() {
+  errorBar.classList.remove('show');
+  const retryBtn = document.getElementById('error-retry-btn');
+  if (retryBtn) retryBtn.style.display = 'none';
+}
 function showResult(on) {
   weatherResult.classList.toggle('show', on);
   weatherResult.style.display = on ? 'block' : 'none';
@@ -167,13 +174,24 @@ function saveHistory(city) {
   renderHistory();
 }
 function clearHistory() { localStorage.removeItem(LS.history); renderHistory(); }
+function deleteHistoryItem(city) {
+  const next = loadHistory().filter(x => x !== city);
+  localStorage.setItem(LS.history, JSON.stringify(next));
+  renderHistory();
+}
 function renderHistory() {
   historyBox.innerHTML = '';
   loadHistory().forEach(name => {
+    const wrap = document.createElement('span');
+    wrap.className = 'chip-wrap';
     const b = document.createElement('button');
     b.className = 'chip'; b.textContent = name;
     b.addEventListener('click', () => { cityInput.value = name; getWeatherByCity(name); });
-    historyBox.appendChild(b);
+    const del = document.createElement('button');
+    del.className = 'chip-del'; del.textContent = '×'; del.title = '履歴から削除';
+    del.addEventListener('click', e => { e.stopPropagation(); deleteHistoryItem(name); });
+    wrap.appendChild(b); wrap.appendChild(del);
+    historyBox.appendChild(wrap);
   });
 }
 
@@ -279,7 +297,35 @@ async function fetchAndRenderForecast(lat, lon, unit) {
     renderHourlyForecast(r.data, unit);
     renderWeeklyForecast(r.data, unit);
     renderTempChart(r.data, unit);
+    checkRainBanner(r.data);
   } catch { /* 予報取得失敗は無視（メイン天気は表示済み） */ }
+}
+
+// ===== 雨予報バナー =====
+function checkRainBanner(fd) {
+  const banner = document.getElementById('rain-banner');
+  if (!banner) return;
+  // セッション内で閉じられていたら出さない
+  if (sessionStorage.getItem('rain_banner_dismissed')) return;
+  const upcoming = fd.list.slice(0, 3); // 次 ~9h
+  const rainItem = upcoming.find(item => {
+    const pop  = item.pop ?? 0;
+    const icon = item.weather?.[0]?.icon ?? '';
+    return pop >= 0.40 || icon.startsWith('09') || icon.startsWith('10') || icon.startsWith('11');
+  });
+  if (!rainItem) { banner.classList.remove('show'); return; }
+  const tz   = fd.city?.timezone ?? 0;
+  const time = unixToTime(rainItem.dt, tz);
+  const pop  = Math.round((rainItem.pop ?? 0) * 100);
+  const desc = rainItem.weather?.[0]?.description ?? '雨';
+  const icon = rainItem.weather?.[0]?.icon ?? '';
+  const emoji = icon.startsWith('11') ? '⛈' : '🌂';
+  const textEl = banner.querySelector('.rain-banner-text');
+  if (textEl) textEl.innerHTML =
+    '<strong>' + time + '頃から' + desc + 'の予報</strong>（降水確率 ' + pop + '%）。傘をお忘れなく！';
+  const iconEl = banner.querySelector('.rain-banner-icon');
+  if (iconEl) iconEl.textContent = emoji;
+  banner.classList.add('show');
 }
 
 function renderHourlyForecast(fd, unit) {
@@ -1226,34 +1272,57 @@ function renderNewsSkeleton() {
 
 function renderNewsCards(articles, categoryLabel) {
   categoryLabel = categoryLabel || '';
-  if (!articles.length) {
-    newsContainer.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text2);">ニュースが見つかりませんでした。</div>';
+  const readSet = loadReadUrls();
+  let filtered = articles;
+  if (newsShowUnreadOnly) filtered = articles.filter(a => !readSet.has(a.url));
+  if (!filtered.length) {
+    newsContainer.innerHTML =
+      '<div style="padding:40px;text-align:center;color:var(--text2);">' +
+      (newsShowUnreadOnly ? '📭 未読の記事はありません。<br><small style="opacity:.7;margin-top:8px;display:block">「すべて」に切り替えると既読も表示されます</small>'
+        : 'ニュースが見つかりませんでした。') +
+      '</div>';
     return;
   }
-  const displayed = articles.slice(0, 20);
+  const displayed = filtered.slice(0, 20);
   const featured  = displayed.slice(0, 2);
   const rest      = displayed.slice(2);
   newsContainer.innerHTML =
-    '<div class="featured-news">' + featured.map(a => newsCardHTML(a, true, categoryLabel)).join('') + '</div>' +
-    (rest.length ? '<div class="news-grid">' + rest.map(a => newsCardHTML(a, false, categoryLabel)).join('') + '</div>' : '');
+    '<div class="featured-news">' + featured.map(a => newsCardHTML(a, true, categoryLabel, readSet)).join('') + '</div>' +
+    (rest.length ? '<div class="news-grid">' + rest.map(a => newsCardHTML(a, false, categoryLabel, readSet)).join('') + '</div>' : '');
   newsContainer.querySelectorAll('.news-card').forEach(el => {
-    el.addEventListener('click', () => { const h = el.dataset.url; if (h) window.open(h, '_blank', 'noopener'); });
-    el.addEventListener('keydown', e => { if (e.key==='Enter'||e.key===' ') { const h=el.dataset.url; if(h) window.open(h,'_blank','noopener'); }});
+    const open = () => {
+      const h = el.dataset.url;
+      if (!h) return;
+      markAsRead(h);
+      el.classList.add('is-read');
+      window.open(h, '_blank', 'noopener');
+    };
+    el.addEventListener('click', open);
+    el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') open(); });
   });
 }
 
-function newsCardHTML(a, featured, categoryLabel) {
+function newsCardHTML(a, featured, categoryLabel, readSet) {
   const hasImage = !!a.image;
+  const isRead   = readSet && readSet.has(a.url);
   const imgSection = hasImage
     ? '<div class="news-img"><img src="' + escHtml(a.image) + '" alt="" loading="lazy" onerror="this.parentElement.style.display=\'none\'"></div>'
     : '';
-  const srcIcon = '📡 ';
-  return '<div class="news-card' + (featured?' featured':'') + (hasImage?'':' no-img') + '" data-url="' + escHtml(a.url) + '" tabindex="0" role="link" aria-label="' + escHtml(a.title) + '">' +
+  const timeStr  = relativeTime(a.publishedAt);
+  const readBadge = isRead ? '<span class="news-read-badge">既読</span>' : '';
+  return '<div class="news-card' + (featured ? ' featured' : '') + (hasImage ? '' : ' no-img') + (isRead ? ' is-read' : '') +
+    '" data-url="' + escHtml(a.url) + '" tabindex="0" role="link" aria-label="' + escHtml(a.title) + '">' +
     imgSection +
     '<div class="news-body">' +
       '<div class="news-category">' + escHtml(categoryLabel || a.category || '') + '</div>' +
       '<div class="news-title">' + escHtml(a.title) + '</div>' +
-      '<div class="news-meta"><span class="news-source">' + srcIcon + escHtml(a.source) + '</span></div>' +
+      '<div class="news-meta">' +
+        '<span class="news-source">📡 ' + escHtml(a.source) + '</span>' +
+        '<span style="display:flex;gap:6px;align-items:center;">' +
+          (timeStr ? '<span class="news-time">' + timeStr + '</span>' : '') +
+          readBadge +
+        '</span>' +
+      '</div>' +
     '</div></div>';
 }
 
@@ -1261,6 +1330,53 @@ function escHtml(str) {
   if (!str) return '';
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+
+// ===== 相対時刻 =====
+function relativeTime(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  if (isNaN(d)) return '';
+  const diff = Date.now() - d.getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return 'たった今';
+  if (m < 60) return m + '分前';
+  const h = Math.floor(m / 60);
+  if (h < 24) return h + '時間前';
+  const day = Math.floor(h / 24);
+  if (day < 7) return day + '日前';
+  return (d.getMonth() + 1) + '/' + d.getDate();
+}
+
+// ===== ニュース既読管理 =====
+function loadReadUrls() {
+  try { return new Set(JSON.parse(localStorage.getItem(LS.newsRead) || '[]')); }
+  catch { return new Set(); }
+}
+function markAsRead(url) {
+  if (!url) return;
+  const set = loadReadUrls();
+  set.add(url);
+  const arr = [...set].slice(-300);
+  try { localStorage.setItem(LS.newsRead, JSON.stringify(arr)); } catch {}
+}
+function clearReadUrls() {
+  try { localStorage.removeItem(LS.newsRead); } catch {}
+}
+
+let newsShowUnreadOnly = false;
+
+// ===== スクロールトップボタン =====
+(function initScrollTop() {
+  const btn = document.createElement('button');
+  btn.className = 'scroll-top-btn';
+  btn.innerHTML = '↑';
+  btn.title = 'トップへ戻る';
+  btn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+  document.body.appendChild(btn);
+  window.addEventListener('scroll', () => {
+    btn.classList.toggle('visible', window.scrollY > 400);
+  }, { passive: true });
+})();
 
 // ===== イベントリスナー =====
 document.getElementById('fav-btn').addEventListener('click', () => { if (currentCity) toggleFavorite(currentCity); });
@@ -1310,6 +1426,42 @@ newsTabs.querySelectorAll('.news-tab').forEach(tab => {
     localStorage.setItem(LS.category, currentCategory);
     fetchAndRenderNews(currentCategory);
   });
+});
+
+// 雨バナー閉じるボタン
+document.getElementById('rain-banner-close')?.addEventListener('click', () => {
+  const banner = document.getElementById('rain-banner');
+  if (banner) banner.classList.remove('show');
+  sessionStorage.setItem('rain_banner_dismissed', '1');
+});
+
+// エラー再試行ボタン
+document.getElementById('error-retry-btn')?.addEventListener('click', () => {
+  clearError();
+  const city = cityInput.value.trim() || currentCity;
+  if (city) getWeatherByCity(city);
+  else if (lastCoords) getWeatherByGeo();
+});
+
+// ニュースフィルター
+document.getElementById('news-filter-all')?.addEventListener('click', () => {
+  newsShowUnreadOnly = false;
+  document.getElementById('news-filter-all').classList.add('active');
+  document.getElementById('news-filter-unread').classList.remove('active');
+  fetchAndRenderNews(currentCategory);
+});
+document.getElementById('news-filter-unread')?.addEventListener('click', () => {
+  newsShowUnreadOnly = true;
+  document.getElementById('news-filter-unread').classList.add('active');
+  document.getElementById('news-filter-all').classList.remove('active');
+  fetchAndRenderNews(currentCategory);
+});
+document.getElementById('news-filter-clear-read')?.addEventListener('click', () => {
+  clearReadUrls();
+  newsShowUnreadOnly = false;
+  document.getElementById('news-filter-all').classList.add('active');
+  document.getElementById('news-filter-unread').classList.remove('active');
+  fetchAndRenderNews(currentCategory);
 });
 
 // 通知ボタン
@@ -1369,7 +1521,7 @@ function startAutoRefresh() {
   renderHistory();
   renderFavorites();
   // 前回選択したニュースカテゴリを復元
-  const validCategories = Object.keys(RSS_FEEDS);
+  const validCategories = Object.keys(CATEGORY_LABEL);
   const savedCategory = localStorage.getItem(LS.category);
   if (savedCategory && validCategories.includes(savedCategory)) {
     currentCategory = savedCategory;
