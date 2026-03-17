@@ -1250,11 +1250,12 @@ async function fetchGNews(category) {
 // RSS フィード（disaster はこちらを使用）
 // rss2json.com がサーバーサイドで取得するため CORS・403 問題を回避
 const RSS_FEEDS = {
-  disaster: 'https://news.yahoo.co.jp/rss/topics/disaster.xml',
+  // Google News RSS: 災害キーワード検索（複数メディアを横断・無料）
+  disaster: 'https://news.google.com/rss/search?q=%E7%81%BD%E5%AE%B3+OR+%E5%9C%B0%E9%9C%87+OR+%E5%8F%B0%E9%A2%A8+OR+%E6%B4%AA%E6%B0%B4&hl=ja&gl=JP&ceid=JP%3Aja',
 };
-// フォールバック（Yahoo が取得できない場合に使用）
+// フォールバック（Google News が取得できない場合に使用）
 const RSS_FEEDS_FALLBACK = {
-  disaster: 'https://www3.nhk.or.jp/rss/news/cat0.xml',
+  disaster: 'https://news.yahoo.co.jp/rss/topics/disaster.xml',
 };
 
 async function fetchRSSNews(category) {
