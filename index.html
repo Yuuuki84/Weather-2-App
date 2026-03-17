@@ -1405,6 +1405,21 @@
     .user-dd-item:hover { background: var(--surface2); }
     .user-dd-item.danger { color: var(--red); }
 
+    /* ===== NEWS BOOKMARK BUTTON ===== */
+    .news-bmark-btn {
+      background: none; border: none; cursor: pointer; font-size: 15px;
+      color: var(--text2); padding: 2px 4px; border-radius: 4px;
+      transition: color .15s, transform .12s; line-height: 1; flex-shrink: 0;
+    }
+    .news-bmark-btn:hover { color: var(--accent2); transform: scale(1.25); }
+    .news-bmark-btn.bookmarked { color: #fbbf24; }
+
+    /* ===== WEEKLY TREND ARROW ===== */
+    .weekly-trend { font-size: 11px; font-weight: 700; }
+    .weekly-trend.up   { color: #f87171; }
+    .weekly-trend.down { color: #60a5fa; }
+    .weekly-trend.flat { color: var(--text2); font-size: 10px; }
+
     /* ===== JMA FORECAST PANEL ===== */
     .jma-panel { padding: 14px 18px; margin-bottom: 16px; }
     .jma-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
@@ -1744,6 +1759,7 @@
       <div class="news-filter-row">
         <button class="news-filter-btn active" id="news-filter-all">すべて</button>
         <button class="news-filter-btn" id="news-filter-unread">未読のみ</button>
+        <button class="news-filter-btn" id="news-filter-bookmark">🔖 ブックマーク</button>
         <button class="news-filter-btn" id="news-filter-clear-read" title="既読をリセット">🗑 既読クリア</button>
       </div>
 

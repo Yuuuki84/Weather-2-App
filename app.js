@@ -17,6 +17,8 @@ const LS = {
   chat:      'sora_chat_history',
   volume:    'sora_volume',
   newsRead:  'sora_news_read',
+  bookmarks: 'sora_bookmarks',
+  notif:     'sora_notif',
 };
 
 // ===== 人気都市（オートコンプリート候補） =====
@@ -208,8 +210,26 @@ function toggleFavorite(city) {
   if (idx >= 0) favs.splice(idx, 1);
   else { favs.unshift(city); if (favs.length > 10) favs.pop(); }
   localStorage.setItem(LS.favorites, JSON.stringify(favs));
+  sbSaveSettings({ favorites: favs });
   renderFavorites();
   updateFavBtn(city);
+}
+
+// ===== ニュースブックマーク =====
+function loadBookmarks() {
+  try { const r = JSON.parse(localStorage.getItem(LS.bookmarks) || '[]'); return Array.isArray(r) ? r : []; }
+  catch { return []; }
+}
+function isBookmarked(url) {
+  return loadBookmarks().some(b => b.url === url);
+}
+function toggleBookmark(article) {
+  const bmarks = loadBookmarks();
+  const idx = bmarks.findIndex(b => b.url === article.url);
+  if (idx >= 0) bmarks.splice(idx, 1);
+  else { bmarks.unshift({ url: article.url, title: article.title, source: article.source || '', publishedAt: article.publishedAt || '', image: article.image || '' }); if (bmarks.length > 50) bmarks.pop(); }
+  localStorage.setItem(LS.bookmarks, JSON.stringify(bmarks));
+  sbSaveSettings({ news_bookmarks: bmarks });
 }
 function renderFavorites() {
   const section = document.getElementById('favorites-section');
@@ -367,17 +387,29 @@ function renderWeeklyForecast(fd, unit) {
     days[key].icons.push(item.weather?.[0]?.icon ?? '01d');
     days[key].pop.push(item.pop ?? 0);
   });
-  grid.innerHTML = Object.values(days).slice(0, 6).map(d => {
+  const dayValues = Object.values(days).slice(0, 6);
+  grid.innerHTML = dayValues.map((d, i) => {
     const maxT  = Math.max(...d.temps);
     const minT  = Math.min(...d.temps);
+    const avgT  = d.temps.reduce((s, v) => s + v, 0) / d.temps.length;
     const icon  = d.icons[Math.floor(d.icons.length / 2)] || d.icons[0];
     const maxPop = Math.round(Math.max(...d.pop) * 100);
     const tUnit = unit === 'imperial' ? '℉' : '℃';
+    // 前日比トレンド矢印
+    let trend = '';
+    if (i > 0) {
+      const prevAvg = dayValues[i-1].temps.reduce((s, v) => s + v, 0) / dayValues[i-1].temps.length;
+      const diff = avgT - prevAvg;
+      if (diff > 1.5)       trend = '<span class="weekly-trend up">▲</span>';
+      else if (diff < -1.5) trend = '<span class="weekly-trend down">▼</span>';
+      else                  trend = '<span class="weekly-trend flat">→</span>';
+    }
     return '<div class="weekly-card">' +
       '<div class="weekly-day">' + d.label + '</div>' +
       '<img src="https://openweathermap.org/img/wn/' + icon + '.png" alt="">' +
       '<div class="weekly-temps">' +
         '<span class="weekly-max"' + tempColorStyle(maxT, unit) + '>' + Math.round(maxT) + tUnit + '</span>' +
+        trend +
         '<span class="weekly-min"' + tempColorStyle(minT, unit) + '>' + Math.round(minT) + tUnit + '</span>' +
       '</div>' +
       (maxPop > 0 ? '<div class="weekly-pop"><span class="pop-pill" style="--p:' + maxPop + '%">' + maxPop + '%</span></div>' : '') +
@@ -1357,7 +1389,11 @@ function renderNewsCards(articles, categoryLabel) {
   newsContainer.innerHTML =
     '<div class="featured-news">' + featured.map(a => newsCardHTML(a, true, categoryLabel, readSet)).join('') + '</div>' +
     (rest.length ? '<div class="news-grid">' + rest.map(a => newsCardHTML(a, false, categoryLabel, readSet)).join('') + '</div>' : '');
-  newsContainer.querySelectorAll('.news-card').forEach(el => {
+  attachNewsListeners(newsContainer);
+}
+
+function attachNewsListeners(container) {
+  container.querySelectorAll('.news-card').forEach(el => {
     const open = () => {
       const h = el.dataset.url;
       if (!h) return;
@@ -1367,6 +1403,40 @@ function renderNewsCards(articles, categoryLabel) {
     };
     el.addEventListener('click', open);
     el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') open(); });
+  });
+  container.querySelectorAll('.news-bmark-btn').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      toggleBookmark({ url: btn.dataset.url, title: btn.dataset.title, source: btn.dataset.source, publishedAt: btn.dataset.pub, image: btn.dataset.img });
+      const bmarked = isBookmarked(btn.dataset.url);
+      btn.textContent = bmarked ? '★' : '☆';
+      btn.classList.toggle('bookmarked', bmarked);
+    });
+  });
+}
+
+function renderBookmarkCards() {
+  const bmarks = loadBookmarks();
+  if (!bmarks.length) {
+    newsContainer.innerHTML =
+      '<div style="padding:48px 20px;text-align:center;color:var(--text2);">' +
+      '<div style="font-size:40px;margin-bottom:12px;">🔖</div>' +
+      '<div style="font-weight:700;font-size:16px;color:var(--text);margin-bottom:8px;">ブックマークはありません</div>' +
+      '<div style="font-size:13px;">記事カードの ☆ をクリックして保存できます</div>' +
+      '</div>';
+    return;
+  }
+  const readSet = loadReadUrls();
+  newsContainer.innerHTML = '<div class="news-grid">' + bmarks.map(a => newsCardHTML(a, false, 'ブックマーク', readSet)).join('') + '</div>';
+  attachNewsListeners(newsContainer);
+  // ブックマーク表示時はブックマーク削除でカードを除去
+  newsContainer.querySelectorAll('.news-bmark-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (!isBookmarked(btn.dataset.url)) {
+        btn.closest('.news-card')?.remove();
+        if (!newsContainer.querySelector('.news-card')) renderBookmarkCards();
+      }
+    }, { capture: false });
   });
 }
 
@@ -1389,6 +1459,15 @@ function newsCardHTML(a, featured, categoryLabel, readSet) {
         '<span style="display:flex;gap:6px;align-items:center;">' +
           (timeStr ? '<span class="news-time">' + timeStr + '</span>' : '') +
           readBadge +
+          '<button class="news-bmark-btn' + (isBookmarked(a.url) ? ' bookmarked' : '') + '"' +
+            ' data-url="' + escHtml(a.url) + '"' +
+            ' data-title="' + escHtml(a.title) + '"' +
+            ' data-source="' + escHtml(a.source || '') + '"' +
+            ' data-pub="' + escHtml(a.publishedAt || '') + '"' +
+            ' data-img="' + escHtml(a.image || '') + '"' +
+            ' title="ブックマーク" aria-label="ブックマーク">' +
+            (isBookmarked(a.url) ? '★' : '☆') +
+          '</button>' +
         '</span>' +
       '</div>' +
     '</div></div>';
@@ -1420,15 +1499,20 @@ function loadReadUrls() {
   try { return new Set(JSON.parse(localStorage.getItem(LS.newsRead) || '[]')); }
   catch { return new Set(); }
 }
+let _syncReadTimer = null;
 function markAsRead(url) {
   if (!url) return;
   const set = loadReadUrls();
   set.add(url);
   const arr = [...set].slice(-300);
   try { localStorage.setItem(LS.newsRead, JSON.stringify(arr)); } catch {}
+  // クラウドへの書き込みはデバウンスして過剰なAPIコールを防ぐ
+  clearTimeout(_syncReadTimer);
+  _syncReadTimer = setTimeout(() => sbSaveSettings({ news_read: arr.slice(-100) }), 3000);
 }
 function clearReadUrls() {
   try { localStorage.removeItem(LS.newsRead); } catch {}
+  sbSaveSettings({ news_read: [] });
 }
 
 let newsShowUnreadOnly = false;
@@ -1515,23 +1599,30 @@ document.getElementById('error-retry-btn')?.addEventListener('click', () => {
 });
 
 // ニュースフィルター
+function setFilterActive(id) {
+  ['news-filter-all','news-filter-unread','news-filter-bookmark'].forEach(i =>
+    document.getElementById(i)?.classList.remove('active'));
+  document.getElementById(id)?.classList.add('active');
+}
 document.getElementById('news-filter-all')?.addEventListener('click', () => {
   newsShowUnreadOnly = false;
-  document.getElementById('news-filter-all').classList.add('active');
-  document.getElementById('news-filter-unread').classList.remove('active');
+  setFilterActive('news-filter-all');
   fetchAndRenderNews(currentCategory);
 });
 document.getElementById('news-filter-unread')?.addEventListener('click', () => {
   newsShowUnreadOnly = true;
-  document.getElementById('news-filter-unread').classList.add('active');
-  document.getElementById('news-filter-all').classList.remove('active');
+  setFilterActive('news-filter-unread');
   fetchAndRenderNews(currentCategory);
+});
+document.getElementById('news-filter-bookmark')?.addEventListener('click', () => {
+  newsShowUnreadOnly = false;
+  setFilterActive('news-filter-bookmark');
+  renderBookmarkCards();
 });
 document.getElementById('news-filter-clear-read')?.addEventListener('click', () => {
   clearReadUrls();
   newsShowUnreadOnly = false;
-  document.getElementById('news-filter-all').classList.add('active');
-  document.getElementById('news-filter-unread').classList.remove('active');
+  setFilterActive('news-filter-all');
   fetchAndRenderNews(currentCategory);
 });
 
@@ -1542,6 +1633,7 @@ document.getElementById('notif-btn').addEventListener('click', async () => {
     const granted = await requestNotificationPermission();
     if (granted) {
       notificationsEnabled = true;
+      localStorage.setItem(LS.notif, '1');
       btn.classList.remove('notif-btn-off');
       btn.title = '通知ON（クリックでOFF）';
     } else {
@@ -1549,6 +1641,7 @@ document.getElementById('notif-btn').addEventListener('click', async () => {
     }
   } else {
     notificationsEnabled = false;
+    localStorage.removeItem(LS.notif);
     btn.classList.add('notif-btn-off');
     btn.title = '天気アラート通知をONにする';
   }
@@ -1659,12 +1752,15 @@ function updateAuthUI(user) {
       document.getElementById('auth-backdrop')?.classList.add('show');
     });
   } else {
-    const initial = (user.email || '?')[0].toUpperCase();
+    // Google OAuth は full_name、メール登録は email のプレフィックスを表示
+    const displayName = user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || '?';
+    const initial = displayName[0].toUpperCase();
     area.innerHTML =
       '<div class="user-badge" id="user-badge">' +
         '<div class="user-avatar">' + initial + '</div>' +
-        '<span class="user-email">' + (user.email || '') + '</span>' +
+        '<span class="user-email">' + displayName + '</span>' +
         '<div class="user-dropdown">' +
+          '<div class="user-dd-item" id="user-email-dd" style="font-size:11px;color:var(--text2);padding-bottom:4px;border-bottom:1px solid var(--border);">' + (user.email || '') + '</div>' +
           '<div class="user-dd-item danger" id="signout-btn">ログアウト</div>' +
         '</div>' +
       '</div>';
@@ -1771,6 +1867,13 @@ function setAuthMsg(type, msg) {
   document.getElementById('login-btn')?.addEventListener('click', () => {
     document.getElementById('auth-backdrop')?.classList.add('show');
   });
+  // 通知状態を復元
+  if (localStorage.getItem(LS.notif) === '1' && Notification.permission === 'granted') {
+    notificationsEnabled = true;
+    const nb = document.getElementById('notif-btn');
+    if (nb) { nb.classList.remove('notif-btn-off'); nb.title = '通知ON（クリックでOFF）'; }
+  }
+
   sbOnAuthChange((event, user) => {
     updateAuthUI(user);
     // INITIAL_SESSION: ページ読み込み時の既存セッション検出
@@ -1787,6 +1890,24 @@ function setAuthMsg(type, msg) {
           fetchAndRenderNews(currentCategory);
         }
         if (settings.city) { cityInput.value = settings.city; getWeatherByCity(settings.city); }
+        // お気に入りクラウド同期
+        if (Array.isArray(settings.favorites) && settings.favorites.length) {
+          localStorage.setItem(LS.favorites, JSON.stringify(settings.favorites));
+          renderFavorites();
+        }
+        // ニュース既読クラウド同期（ローカルとマージ）
+        if (Array.isArray(settings.news_read) && settings.news_read.length) {
+          const local = loadReadUrls();
+          settings.news_read.forEach(u => local.add(u));
+          try { localStorage.setItem(LS.newsRead, JSON.stringify([...local].slice(-300))); } catch {}
+        }
+        // ニュースブックマーク復元
+        if (Array.isArray(settings.news_bookmarks) && settings.news_bookmarks.length) {
+          const local = loadBookmarks();
+          const localUrls = new Set(local.map(b => b.url));
+          const merged = [...local, ...settings.news_bookmarks.filter(b => !localUrls.has(b.url))].slice(0, 50);
+          localStorage.setItem(LS.bookmarks, JSON.stringify(merged));
+        }
       });
       document.getElementById('auth-backdrop')?.classList.remove('show');
     }
