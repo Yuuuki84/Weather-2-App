@@ -87,6 +87,7 @@ Weather-2-App/
 ├── app.js      # ロジック（天気・ニュース・Gemini AI・アドバイス）
 ├── config.example.js      
 ├── index.html      # UI・スタイル（全CSS含む）
+├── supabase.js      
 └── sw.js      
 ├── .env            # APIキー（ローカル専用・GitHubには非公開）
 └── .gitignore      # .env を除外
