@@ -1949,33 +1949,44 @@ function setAuthMsg(type, msg) {
     // SIGNED_IN: 新規ログイン完了
     if ((event === 'INITIAL_SESSION' || event === 'SIGNED_IN') && user) {
       sbLoadSettings().then(settings => {
-        if (!settings) return;
-        if (settings.theme && (settings.theme === 'dark' || settings.theme === 'light')) applyTheme(settings.theme);
-        if (settings.unit  && (settings.unit  === 'metric' || settings.unit === 'imperial')) applyUnit(settings.unit);
-        if (settings.news_category && validCategories.includes(settings.news_category)) {
-          currentCategory = settings.news_category;
+        // settings が null = DB行未作成。ローカルデータをクラウドへ初期アップロード
+        const s = settings || {};
+        if (s.theme && (s.theme === 'dark' || s.theme === 'light')) applyTheme(s.theme);
+        if (s.unit  && (s.unit  === 'metric' || s.unit === 'imperial')) applyUnit(s.unit);
+        if (s.news_category && validCategories.includes(s.news_category)) {
+          currentCategory = s.news_category;
           newsTabs.querySelectorAll('.news-tab').forEach(t => t.classList.remove('active'));
           newsTabs.querySelector('.news-tab[data-cat="' + currentCategory + '"]')?.classList.add('active');
           fetchAndRenderNews(currentCategory);
         }
-        if (settings.city) { cityInput.value = settings.city; getWeatherByCity(settings.city); }
-        // お気に入りクラウド同期
-        if (Array.isArray(settings.favorites) && settings.favorites.length) {
-          localStorage.setItem(LS.favorites, JSON.stringify(settings.favorites));
+        if (s.city) { cityInput.value = s.city; getWeatherByCity(s.city); }
+
+        // お気に入り: クラウド ↔ ローカル 双方向マージ
+        // ローカルにあってクラウドにないものも含めて統合し、クラウドへ書き戻す
+        const cloudFavs  = Array.isArray(s.favorites) ? s.favorites : [];
+        const localFavs  = loadFavorites();
+        const mergedFavs = [...cloudFavs, ...localFavs.filter(c => !cloudFavs.includes(c))].slice(0, 10);
+        if (mergedFavs.length) {
+          localStorage.setItem(LS.favorites, JSON.stringify(mergedFavs));
           renderFavorites();
+          // ローカルのみにあった項目があればクラウドを更新
+          if (localFavs.some(c => !cloudFavs.includes(c))) sbSaveSettings({ favorites: mergedFavs });
         }
+
         // ニュース既読クラウド同期（ローカルとマージ）
-        if (Array.isArray(settings.news_read) && settings.news_read.length) {
+        if (Array.isArray(s.news_read) && s.news_read.length) {
           const local = loadReadUrls();
-          settings.news_read.forEach(u => local.add(u));
+          s.news_read.forEach(u => local.add(u));
           try { localStorage.setItem(LS.newsRead, JSON.stringify([...local].slice(-300))); } catch {}
         }
-        // ニュースブックマーク復元
-        if (Array.isArray(settings.news_bookmarks) && settings.news_bookmarks.length) {
-          const local = loadBookmarks();
-          const localUrls = new Set(local.map(b => b.url));
-          const merged = [...local, ...settings.news_bookmarks.filter(b => !localUrls.has(b.url))].slice(0, 50);
-          localStorage.setItem(LS.bookmarks, JSON.stringify(merged));
+        // ニュースブックマーク復元（双方向マージ）
+        const cloudBmarks = Array.isArray(s.news_bookmarks) ? s.news_bookmarks : [];
+        const localBmarks = loadBookmarks();
+        const localBUrls  = new Set(localBmarks.map(b => b.url));
+        const mergedBmarks = [...localBmarks, ...cloudBmarks.filter(b => !localBUrls.has(b.url))].slice(0, 50);
+        if (mergedBmarks.length) {
+          localStorage.setItem(LS.bookmarks, JSON.stringify(mergedBmarks));
+          if (cloudBmarks.some(b => !localBUrls.has(b.url))) sbSaveSettings({ news_bookmarks: mergedBmarks });
         }
       });
       document.getElementById('auth-backdrop')?.classList.remove('show');
