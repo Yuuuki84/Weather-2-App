@@ -1341,6 +1341,40 @@
     .auth-msg.error { color: var(--red); }
     .auth-msg.success { color: var(--green); }
 
+    /* ===== AUTH FEATURE COLLAPSIBLE ===== */
+    .auth-feature-details {
+      margin-top: 22px; border-top: 1px solid var(--border);
+      padding-top: 14px;
+    }
+    .auth-feature-summary {
+      list-style: none; display: flex; align-items: center; justify-content: space-between;
+      cursor: pointer; font-size: 12px; font-weight: 700; color: var(--text2);
+      letter-spacing: .04em; user-select: none; outline: none;
+      padding: 2px 0;
+    }
+    .auth-feature-summary::-webkit-details-marker { display: none; }
+    .auth-feature-summary::after {
+      content: '▸'; font-size: 11px; transition: transform .2s;
+    }
+    details.auth-feature-details[open] .auth-feature-summary::after {
+      transform: rotate(90deg);
+    }
+    .auth-feature-body {
+      margin-top: 12px; display: flex; flex-direction: column; gap: 10px;
+    }
+    .auth-feature-item {
+      display: flex; gap: 10px; align-items: flex-start;
+    }
+    .auth-feature-icon {
+      width: 30px; height: 30px; border-radius: 10px;
+      background: rgba(99,102,241,0.13); border: 1px solid rgba(99,102,241,0.22);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; flex-shrink: 0; margin-top: 1px;
+    }
+    .auth-feature-text { display: flex; flex-direction: column; gap: 2px; }
+    .auth-feature-title { font-size: 12px; font-weight: 700; color: var(--text); }
+    .auth-feature-desc { font-size: 11px; color: var(--text2); line-height: 1.6; }
+
     /* User badge (logged-in state) */
     .user-badge {
       display: flex; align-items: center; gap: 7px;
@@ -1442,6 +1476,41 @@
             <div class="auth-msg" id="auth-msg"></div>
           </div>
         </div>
+
+        <!-- サインイン機能説明（コラプシブル） -->
+        <details class="auth-feature-details">
+          <summary class="auth-feature-summary">サインインで利用できる機能</summary>
+          <div class="auth-feature-body">
+            <div class="auth-feature-item">
+              <div class="auth-feature-icon">☁️</div>
+              <div class="auth-feature-text">
+                <div class="auth-feature-title">設定情報のクラウド同期</div>
+                <div class="auth-feature-desc">テーマ・温度単位・最終検索都市・ニュースカテゴリの選択状態がサーバーに保存されます。複数の端末やブラウザからアクセスした際も、同一の設定が自動的に復元されます。</div>
+              </div>
+            </div>
+            <div class="auth-feature-item">
+              <div class="auth-feature-icon">🏙️</div>
+              <div class="auth-feature-text">
+                <div class="auth-feature-title">最終閲覧都市の自動復元</div>
+                <div class="auth-feature-desc">前回ご利用時に検索された都市の天気情報が、次回ログイン時に自動で表示されます。毎回の入力操作を省略することが可能です。</div>
+              </div>
+            </div>
+            <div class="auth-feature-item">
+              <div class="auth-feature-icon">📋</div>
+              <div class="auth-feature-text">
+                <div class="auth-feature-title">利用履歴の記録</div>
+                <div class="auth-feature-desc">天気検索およびニュースカテゴリの閲覧履歴が日時情報とともにデータベースに記録されます。お客様自身の利用状況を管理画面からご確認いただけます。</div>
+              </div>
+            </div>
+            <div class="auth-feature-item">
+              <div class="auth-feature-icon">🔒</div>
+              <div class="auth-feature-text">
+                <div class="auth-feature-title">データの完全分離・セキュリティ保護</div>
+                <div class="auth-feature-desc">各ユーザーのデータはRow Level Security（行レベルセキュリティ）により厳密に分離されています。他のユーザーがお客様の設定・履歴にアクセスすることは一切できません。</div>
+              </div>
+            </div>
+          </div>
+        </details>
       </div>
     </div>
 
