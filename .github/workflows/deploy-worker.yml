@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'chat-worker/**'
+  workflow_dispatch:  # GitHub Actions 画面から手動実行可能
 
 jobs:
   deploy:
