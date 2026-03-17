@@ -264,7 +264,7 @@ async function renderFavWeatherDashboard() {
 
   const results = await Promise.all(favs.map(city =>
     fetchJson(
-      'https://api.openweathermap.org/data/2.5/weather?q=' + encodeURIComponent(city) +
+      'https://api.openweathermap.org/data/2.5/weather?q=' + encodeURIComponent(buildGeoQuery(city)) +
       '&appid=' + WEATHER_API_KEY + '&units=metric&lang=ja'
     ).catch(() => ({ ok: false }))
   ));
@@ -1163,6 +1163,12 @@ function fetchPoodleCard(wxClass) {
     '</div>';
 }
 
+// 日本語文字を含む都市名には ",JP" を付加して日本に絞り込む
+function buildGeoQuery(city) {
+  if (!city.includes(',') && /[\u3000-\u9fff\uff00-\uffef]/.test(city)) return city + ',JP';
+  return city;
+}
+
 // ===== 都市名で天気取得 =====
 async function getWeatherByCity(cityRaw) {
   const city = (cityRaw ?? cityInput.value).trim();
@@ -1172,7 +1178,7 @@ async function getWeatherByCity(cityRaw) {
   setLoading(true, '都市を検索しています...');
   try {
     const geo = await fetchJson(
-      'https://api.openweathermap.org/geo/1.0/direct?q=' + encodeURIComponent(city) + '&limit=1&appid=' + WEATHER_API_KEY
+      'https://api.openweathermap.org/geo/1.0/direct?q=' + encodeURIComponent(buildGeoQuery(city)) + '&limit=1&appid=' + WEATHER_API_KEY
     );
     if (geo.status === 429) { showError('APIリクエスト制限中です。しばらく待ってから再試行してください。'); return; }
     if (!geo.ok) { showError('都市検索に失敗しました（HTTP ' + geo.status + '）'); return; }
