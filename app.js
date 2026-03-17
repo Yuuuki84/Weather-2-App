@@ -153,7 +153,9 @@ function applyTheme(theme) {
 }
 function toggleTheme() {
   const cur = document.documentElement.getAttribute('data-theme') || 'dark';
-  applyTheme(cur === 'dark' ? 'light' : 'dark');
+  const next = cur === 'dark' ? 'light' : 'dark';
+  applyTheme(next);
+  sbSaveSettings({ theme: next });
 }
 
 // ===== 単位 =====
@@ -825,6 +827,18 @@ function renderWeather(data, unit) {
   const wxKey = (icon ? icon.slice(0,2) : '');
   const wxCls = WX_CLASS_MAP[wxKey] || 'wx-cloudy';
   fetchPoodleCard(wxCls);
+
+  // 気象庁 天気予報（日本の都市のみ）
+  if (data.sys?.country === 'JP' && data.name) {
+    fetchJMAForecast(data.name).then(renderJMAForecast);
+  } else {
+    const panel = document.getElementById('jma-panel');
+    if (panel) panel.style.display = 'none';
+  }
+
+  // Supabase ログ・設定保存
+  sbLog('weather_search', { city: data.name, country: data.sys?.country, unit });
+  sbSaveSettings({ city: data.name });
 }
 
 // ===== 天気アドバイス =====
@@ -1192,6 +1206,7 @@ async function getWeatherByGeo() {
 const CATEGORY_LABEL = {
   general:'トップ', technology:'テクノロジー', science:'サイエンス',
   sports:'スポーツ', entertainment:'エンタメ', health:'ヘルス', business:'ビジネス',
+  disaster:'🚨 災害', pet:'ペット🐩',
 };
 
 // GNews API カテゴリマッピング
@@ -1232,9 +1247,47 @@ async function fetchGNews(category) {
   return articles;
 }
 
+// RSS フィード（disaster / pet はこちらを使用）
+const RSS_FEEDS = {
+  disaster: 'https://news.google.com/rss/search?q=%E5%9C%B0%E9%9C%87+OR+%E5%8F%B0%E9%A2%A8+OR+%E5%A4%A7%E9%9B%A8+OR+%E9%81%BF%E9%9B%A3+OR+%E7%89%B9%E5%88%A5%E8%AD%A6%E5%A0%B1&hl=ja&gl=JP&ceid=JP:ja',
+  pet:      'https://news.google.com/rss/search?q=%E3%83%9A%E3%83%83%E3%83%88+%E7%8A%AC+%E7%8C%AB&hl=ja&gl=JP&ceid=JP:ja',
+};
+
+async function fetchRSSNews(category) {
+  const now = Date.now();
+  if (newsCache[category] && (now - newsCache[category].ts) < CACHE_TTL) return newsCache[category].articles;
+  const rssUrl = RSS_FEEDS[category];
+  if (!rssUrl) throw new Error('RSS未設定');
+  const proxyUrl = 'https://api.allorigins.win/get?url=' + encodeURIComponent(rssUrl);
+  const res = await fetch(proxyUrl, { signal: timeoutSignal(15000) });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const data = await res.json();
+  if (!data.contents) throw new Error('コンテンツ取得失敗');
+  const xml = new DOMParser().parseFromString(data.contents, 'text/xml');
+  const items = Array.from(xml.querySelectorAll('item'));
+  if (!items.length) throw new Error('記事が見つかりませんでした');
+  const feedTitle = xml.querySelector('channel > title')?.textContent || 'ニュース';
+  const articles = items.slice(0, 20).map(item => {
+    let url = item.querySelector('link')?.textContent?.trim() || item.querySelector('guid')?.textContent?.trim() || '';
+    return {
+      title:       item.querySelector('title')?.textContent?.trim() || '',
+      description: item.querySelector('description')?.textContent?.replace(/<[^>]*>/g, '').trim() || '',
+      url,
+      image:       item.getElementsByTagName('media:content')[0]?.getAttribute('url') ||
+                   item.getElementsByTagName('media:thumbnail')[0]?.getAttribute('url') ||
+                   item.querySelector('enclosure')?.getAttribute('url') || '',
+      source:      feedTitle,
+      sourceIcon:  '',
+      publishedAt: item.querySelector('pubDate')?.textContent || '',
+      lang:        'ja',
+    };
+  });
+  newsCache[category] = { ts: now, articles };
+  return articles;
+}
+
 async function fetchAndRenderNews(category) {
   const label = CATEGORY_LABEL[category] || category;
-  // キャッシュが有効なら即描画（スケルトンを出さない）
   const cached = newsCache[category];
   if (cached && (Date.now() - cached.ts) < CACHE_TTL) {
     renderNewsCards(cached.articles, label);
@@ -1242,12 +1295,15 @@ async function fetchAndRenderNews(category) {
   }
   renderNewsSkeleton();
   try {
-    const articles = await fetchGNews(category);
+    // disaster / pet は RSS、それ以外は GNews API
+    const articles = (category === 'disaster' || category === 'pet')
+      ? await fetchRSSNews(category)
+      : await fetchGNews(category);
     if (articles.length > 0) { renderNewsCards(articles, label); return; }
     showNewsMessage('📭', '「' + label + '」の記事が見つかりませんでした', 'しばらく後にお試しください。');
   } catch(e) {
     showNewsMessage('⚠️', 'ニュースの取得に失敗しました',
-      String(e.message || e) + '<br><small style="opacity:.7">GNews API</small>');
+      String(e.message || e) + '<br><small style="opacity:.7">ニュース API</small>');
   }
 }
 
@@ -1415,6 +1471,7 @@ themeBtn.addEventListener('click', toggleTheme);
 clearHistoryBtn.addEventListener('click', clearHistory);
 unitSelect.addEventListener('change', () => {
   localStorage.setItem(LS.unit, unitSelect.value);
+  sbSaveSettings({ unit: unitSelect.value });
   const c = cityInput.value.trim();
   if (c) getWeatherByCity(c);
 });
@@ -1424,6 +1481,8 @@ newsTabs.querySelectorAll('.news-tab').forEach(tab => {
     tab.classList.add('active');
     currentCategory = tab.dataset.cat;
     localStorage.setItem(LS.category, currentCategory);
+    sbSaveSettings({ news_category: currentCategory });
+    sbLog('news_category', { category: currentCategory });
     fetchAndRenderNews(currentCategory);
   });
 });
@@ -1511,6 +1570,165 @@ function startAutoRefresh() {
   autoRefreshTimer = setInterval(autoRefreshWeather, AUTO_REFRESH_MS);
 }
 
+// ===== 気象庁 API =====
+const JMA_AREA_CODE = {
+  'Tokyo':'130000','東京':'130000','Osaka':'270000','大阪':'270000',
+  'Kyoto':'260000','京都':'260000','Nagoya':'230000','名古屋':'230000',
+  'Fukuoka':'400000','福岡':'400000','Sapporo':'016000','札幌':'016000',
+  'Sendai':'040000','仙台':'040000','Hiroshima':'340000','広島':'340000',
+  'Kobe':'280000','神戸':'280000','Yokohama':'140000','横浜':'140000',
+  'Wakayama':'300000','和歌山':'300000','Nara':'290000','奈良':'290000',
+  'Kanazawa':'170000','金沢':'170000','Naha':'471000','那覇':'471000',
+  'Nagasaki':'420000','長崎':'420000','Kumamoto':'430000','熊本':'430000',
+  'Niigata':'150000','新潟':'150000','Shizuoka':'220000','静岡':'220000',
+  'Okayama':'330000','岡山':'330000','Saitama':'110000','埼玉':'110000',
+  'Chiba':'120000','千葉':'120000','Nagano':'200000','長野':'200000',
+  'Kagoshima':'460100','鹿児島':'460100','Miyazaki':'450000','宮崎':'450000',
+  'Oita':'440000','大分':'440000','Saga':'410000','佐賀':'410000',
+  'Gifu':'210000','岐阜':'210000','Kawasaki':'140000','川崎':'140000',
+};
+
+async function fetchJMAForecast(cityName) {
+  const code = JMA_AREA_CODE[cityName];
+  if (!code) return null;
+  try {
+    const result = await fetchJson('https://www.jma.go.jp/bosai/forecast/data/forecast/' + code + '.json', 10000);
+    if (!result.ok || !Array.isArray(result.data)) return null;
+    const overview = result.data[0];
+    const ts0 = overview.timeSeries[0];
+    const ts1 = overview.timeSeries[1];
+    const area = ts0.areas[0];
+    const days = ts0.timeDefines.slice(0, 3).map((d, i) => {
+      const dt = new Date(d);
+      return {
+        label: i === 0 ? '今日' : i === 1 ? '明日' : '明後日',
+        date: (dt.getMonth() + 1) + '/' + dt.getDate(),
+        weather: (area.weathers?.[i] || '').replace(/\s+/g, ' '),
+        weatherCode: area.weatherCodes?.[i] || '',
+      };
+    });
+    const pops = ts1?.areas[0]?.pops || [];
+    return { days, pops, areaName: area.area.name };
+  } catch { return null; }
+}
+
+function renderJMAForecast(jmaData) {
+  const panel = document.getElementById('jma-panel');
+  if (!panel) return;
+  if (!jmaData || !jmaData.days.length) { panel.style.display = 'none'; return; }
+  const dayCards = jmaData.days.map((d, i) => {
+    const pop = jmaData.pops[i * 2] != null ? jmaData.pops[i * 2] + '%' : '-';
+    const iconUrl = d.weatherCode
+      ? 'https://www.jma.go.jp/bosai/forecast/img/' + d.weatherCode + '.png'
+      : '';
+    return '<div class="jma-day">' +
+      '<div class="jma-day-label">' + d.label + ' ' + d.date + '</div>' +
+      (iconUrl ? '<img class="jma-day-icon" src="' + iconUrl + '" onerror="this.style.display=\'none\'" alt="">' : '') +
+      '<div class="jma-day-weather">' + d.weather + '</div>' +
+      '<div class="jma-day-pop">☂ ' + pop + '</div>' +
+      '</div>';
+  }).join('');
+  panel.innerHTML =
+    '<div class="jma-header">' +
+      '<span class="jma-title">📡 気象庁 天気予報</span>' +
+      '<span class="jma-area">' + jmaData.areaName + '</span>' +
+    '</div>' +
+    '<div class="jma-days">' + dayCards + '</div>';
+  panel.style.display = 'block';
+}
+
+// ===== Supabase 認証 UI =====
+function updateAuthUI(user) {
+  const area = document.getElementById('auth-area');
+  if (!area) return;
+  if (!user) {
+    area.innerHTML = '<button class="btn" id="login-btn" style="font-size:13px;">ログイン</button>';
+    document.getElementById('login-btn')?.addEventListener('click', () => {
+      document.getElementById('auth-backdrop')?.classList.add('show');
+    });
+  } else {
+    const initial = (user.email || '?')[0].toUpperCase();
+    area.innerHTML =
+      '<div class="user-badge" id="user-badge">' +
+        '<div class="user-avatar">' + initial + '</div>' +
+        '<span class="user-email">' + (user.email || '') + '</span>' +
+        '<div class="user-dropdown">' +
+          '<div class="user-dd-item danger" id="signout-btn">ログアウト</div>' +
+        '</div>' +
+      '</div>';
+    document.getElementById('user-badge')?.addEventListener('click', function(e) {
+      e.stopPropagation();
+      this.classList.toggle('open');
+    });
+    document.addEventListener('click', () => {
+      document.getElementById('user-badge')?.classList.remove('open');
+    }, { once: false });
+    document.getElementById('signout-btn')?.addEventListener('click', async () => {
+      await sbSignOut();
+    });
+  }
+}
+
+function initAuthModal() {
+  // タブ切替
+  document.querySelectorAll('[data-auth-tab]').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('[data-auth-tab]').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      const pane = tab.dataset.authTab;
+      document.getElementById('auth-google-pane').style.display = pane === 'google' ? '' : 'none';
+      document.getElementById('auth-email-pane').style.display  = pane === 'email'  ? '' : 'none';
+    });
+  });
+
+  // モーダルを閉じる
+  document.getElementById('auth-close')?.addEventListener('click', () => {
+    document.getElementById('auth-backdrop')?.classList.remove('show');
+  });
+  document.getElementById('auth-backdrop')?.addEventListener('click', e => {
+    if (e.target === document.getElementById('auth-backdrop'))
+      document.getElementById('auth-backdrop').classList.remove('show');
+  });
+
+  // Google サインイン
+  document.getElementById('auth-google-btn')?.addEventListener('click', async () => {
+    try { await sbSignInGoogle(); }
+    catch(e) { setAuthMsg('error', 'Googleログインに失敗しました'); }
+  });
+
+  // メール サインイン / サインアップ
+  let authMode = 'signin';
+  document.getElementById('auth-toggle-mode')?.addEventListener('click', () => {
+    authMode = authMode === 'signin' ? 'signup' : 'signin';
+    document.getElementById('auth-submit-btn').textContent = authMode === 'signin' ? 'ログイン' : '新規登録';
+    document.getElementById('auth-toggle-mode').textContent = authMode === 'signin' ? '新規登録' : 'ログインへ戻る';
+    setAuthMsg('', '');
+  });
+
+  document.getElementById('auth-submit-btn')?.addEventListener('click', async () => {
+    const email    = document.getElementById('auth-email')?.value.trim();
+    const password = document.getElementById('auth-password')?.value;
+    if (!email || !password) { setAuthMsg('error', 'メールとパスワードを入力してください'); return; }
+    setAuthMsg('', '処理中...');
+    const fn = authMode === 'signin' ? sbSignInEmail : sbSignUpEmail;
+    const { error } = await fn(email, password);
+    if (error) {
+      setAuthMsg('error', error.message || 'エラーが発生しました');
+    } else if (authMode === 'signup') {
+      setAuthMsg('success', '確認メールを送信しました。メールを確認してください。');
+    } else {
+      document.getElementById('auth-backdrop')?.classList.remove('show');
+    }
+  });
+}
+
+function setAuthMsg(type, msg) {
+  const el = document.getElementById('auth-msg');
+  if (!el) return;
+  el.className = 'auth-msg' + (type ? ' ' + type : '');
+  el.textContent = msg;
+}
+
 // ===== 初期化 =====
 (function init() {
   const savedTheme = localStorage.getItem(LS.theme);
@@ -1534,4 +1752,36 @@ function startAutoRefresh() {
   fetchAndRenderNews(currentCategory);
   const urlCity = new URL(location.href).searchParams.get('city');
   if (urlCity) { cityInput.value = urlCity; getWeatherByCity(urlCity); }
+
+  // Supabase 認証初期化
+  initAuthModal();
+  document.getElementById('login-btn')?.addEventListener('click', () => {
+    document.getElementById('auth-backdrop')?.classList.add('show');
+  });
+  sbGetSession().then(user => {
+    updateAuthUI(user);
+    if (user) {
+      sbLoadSettings().then(settings => {
+        if (!settings) return;
+        if (settings.theme && (settings.theme === 'dark' || settings.theme === 'light')) applyTheme(settings.theme);
+        if (settings.unit  && (settings.unit  === 'metric' || settings.unit === 'imperial')) applyUnit(settings.unit);
+        if (settings.news_category && validCategories.includes(settings.news_category)) {
+          currentCategory = settings.news_category;
+          newsTabs.querySelectorAll('.news-tab').forEach(t => t.classList.remove('active'));
+          newsTabs.querySelector('.news-tab[data-cat="' + currentCategory + '"]')?.classList.add('active');
+          fetchAndRenderNews(currentCategory);
+        }
+        if (settings.city) { cityInput.value = settings.city; getWeatherByCity(settings.city); }
+      });
+    }
+  });
+  sbOnAuthChange((event, user) => {
+    updateAuthUI(user);
+    if (event === 'SIGNED_IN' && user) {
+      sbLoadSettings().then(settings => {
+        if (settings?.city) { cityInput.value = settings.city; getWeatherByCity(settings.city); }
+      });
+      document.getElementById('auth-backdrop')?.classList.remove('show');
+    }
+  });
 })();

@@ -1281,6 +1281,111 @@
     }
     .error-retry-btn:hover { background: rgba(248,113,113,0.10); }
 
+    /* ===== AUTH MODAL ===== */
+    .auth-backdrop {
+      position: fixed; inset: 0; z-index: 2000;
+      background: rgba(0,0,0,0.65); backdrop-filter: blur(4px);
+      display: none; align-items: center; justify-content: center;
+    }
+    .auth-backdrop.show { display: flex; }
+    .auth-modal {
+      background: #13172a; border: 1px solid var(--border2); border-radius: 24px;
+      padding: 32px; width: min(400px, 92vw); position: relative;
+      box-shadow: 0 32px 80px rgba(0,0,0,0.6);
+    }
+    [data-theme="light"] .auth-modal { background: #fff; }
+    .auth-close {
+      position: absolute; top: 14px; right: 16px;
+      background: none; border: none; font-size: 18px;
+      cursor: pointer; color: var(--text2); line-height: 1;
+    }
+    .auth-title {
+      font-family: var(--font-display); font-size: 20px; font-weight: 800;
+      text-align: center; margin-bottom: 20px;
+    }
+    .auth-tabs { display: flex; gap: 6px; margin-bottom: 18px; }
+    .auth-tab {
+      flex: 1; padding: 7px; border-radius: 999px;
+      border: 1px solid var(--border2); background: none;
+      color: var(--text2); font-family: var(--font); font-size: 13px;
+      font-weight: 600; cursor: pointer; transition: all .15s;
+    }
+    .auth-tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .auth-google-btn {
+      width: 100%; padding: 12px; border-radius: 14px;
+      border: 1px solid var(--border2); background: var(--surface2);
+      color: var(--text); font-family: var(--font); font-size: 14px;
+      font-weight: 600; cursor: pointer; display: flex; align-items: center;
+      justify-content: center; gap: 10px; transition: background .15s;
+    }
+    .auth-google-btn:hover { background: var(--border2); }
+    .auth-email-form { display: flex; flex-direction: column; gap: 10px; }
+    .auth-input {
+      width: 100%; padding: 11px 14px; border-radius: 12px;
+      border: 1px solid var(--border2); background: var(--surface2);
+      color: var(--text); font-family: var(--font); font-size: 14px; outline: none;
+    }
+    .auth-input:focus { border-color: var(--accent); }
+    .auth-input::placeholder { color: var(--text2); }
+    .auth-submit {
+      width: 100%; padding: 12px; border-radius: 999px; border: none;
+      background: var(--accent); color: #fff;
+      font-family: var(--font); font-size: 14px; font-weight: 700;
+      cursor: pointer; transition: opacity .15s;
+    }
+    .auth-submit:hover { opacity: .85; }
+    .auth-switch { text-align: center; font-size: 12px; color: var(--text2); margin-top: 4px; }
+    .auth-switch a { color: var(--accent2); cursor: pointer; }
+    .auth-switch a:hover { text-decoration: underline; }
+    .auth-msg { text-align: center; font-size: 12px; min-height: 18px; padding: 2px 0; }
+    .auth-msg.error { color: var(--red); }
+    .auth-msg.success { color: var(--green); }
+
+    /* User badge (logged-in state) */
+    .user-badge {
+      display: flex; align-items: center; gap: 7px;
+      padding: 5px 11px 5px 5px; border-radius: 999px;
+      border: 1px solid var(--border2); background: var(--surface2);
+      cursor: pointer; font-size: 12px; font-weight: 600;
+      position: relative; user-select: none;
+    }
+    .user-avatar {
+      width: 24px; height: 24px; border-radius: 50%;
+      background: var(--accent); color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 700; flex-shrink: 0;
+    }
+    .user-email { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .user-dropdown {
+      position: absolute; top: calc(100% + 8px); right: 0;
+      background: #13172a; border: 1px solid var(--border2);
+      border-radius: 12px; padding: 6px; white-space: nowrap;
+      box-shadow: var(--shadow2); z-index: 200; display: none; min-width: 140px;
+    }
+    [data-theme="light"] .user-dropdown { background: #fff; }
+    .user-badge.open .user-dropdown { display: block; }
+    .user-dd-item {
+      padding: 7px 12px; border-radius: 8px; cursor: pointer;
+      font-size: 13px; color: var(--text); transition: background .15s;
+    }
+    .user-dd-item:hover { background: var(--surface2); }
+    .user-dd-item.danger { color: var(--red); }
+
+    /* ===== JMA FORECAST PANEL ===== */
+    .jma-panel { padding: 14px 18px; margin-bottom: 16px; }
+    .jma-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .jma-title { font-weight: 700; font-size: 13px; }
+    .jma-area { font-size: 12px; color: var(--text2); }
+    .jma-days { display: flex; gap: 10px; overflow-x: auto; }
+    .jma-day {
+      flex: 1; min-width: 80px; text-align: center; padding: 10px 8px;
+      background: var(--surface2); border-radius: 12px;
+    }
+    .jma-day-label { font-size: 11px; font-weight: 700; color: var(--text2); margin-bottom: 6px; }
+    .jma-day-icon { width: 36px; height: 36px; object-fit: contain; margin-bottom: 4px; }
+    .jma-day-weather { font-size: 10px; line-height: 1.5; color: var(--text2); margin-bottom: 4px; }
+    .jma-day-pop { font-size: 12px; color: #60a5fa; font-weight: 700; }
+
   </style>
 </head>
 
@@ -1300,6 +1405,9 @@
         <div class="logo">Luna & Elma<span>天気 & ニュース</span></div>
       </div>
       <div class="header-actions">
+        <div id="auth-area">
+          <button class="btn" id="login-btn" style="font-size:13px;">ログイン</button>
+        </div>
         <button class="btn icon-btn notif-btn-off" id="notif-btn" title="天気アラート通知をONにする" style="font-size:16px;">🔔</button>
         <select id="unit-select" title="単位">
           <option value="metric">℃ 摂氏</option>
@@ -1309,6 +1417,33 @@
         <button class="btn icon-btn" id="clear-history-btn" title="履歴クリア">🧹</button>
       </div>
     </header>
+
+    <!-- Auth Modal -->
+    <div class="auth-backdrop" id="auth-backdrop">
+      <div class="auth-modal">
+        <button class="auth-close" id="auth-close">✕</button>
+        <div class="auth-title">ログイン / 登録</div>
+        <div class="auth-tabs">
+          <button class="auth-tab active" data-auth-tab="google">Google</button>
+          <button class="auth-tab" data-auth-tab="email">メール</button>
+        </div>
+        <div id="auth-google-pane">
+          <button class="auth-google-btn" id="auth-google-btn">
+            <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/></svg>
+            Google でサインイン
+          </button>
+        </div>
+        <div id="auth-email-pane" style="display:none;">
+          <div class="auth-email-form">
+            <input class="auth-input" type="email" id="auth-email" placeholder="メールアドレス" autocomplete="email" />
+            <input class="auth-input" type="password" id="auth-password" placeholder="パスワード（6文字以上）" autocomplete="current-password" />
+            <button class="auth-submit" id="auth-submit-btn">ログイン</button>
+            <div class="auth-switch">アカウントがない場合は <a id="auth-toggle-mode">新規登録</a></div>
+            <div class="auth-msg" id="auth-msg"></div>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- Search Card -->
     <div class="card search-card">
@@ -1385,6 +1520,9 @@
           </div>
         </div>
       </div>
+
+      <!-- 気象庁 天気予報パネル -->
+      <div class="card jma-panel" id="jma-panel" style="display:none;"></div>
 
       <!-- Detail Grid -->
       <div class="detail-grid">
@@ -1542,7 +1680,8 @@
         <button class="news-tab" data-cat="entertainment">エンタメ</button>
         <button class="news-tab" data-cat="health">健康</button>
         <button class="news-tab" data-cat="business">ビジネス</button>
-
+        <button class="news-tab" data-cat="disaster">🚨 災害</button>
+        <button class="news-tab" data-cat="pet">ペット🐩</button>
       </div>
 
       <div id="news-container"></div>
@@ -1550,9 +1689,11 @@
 
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="config.js"></script>
+  <script src="supabase.js"></script>
   <script src="app.js"></script>
   <script>
     if ('serviceWorker' in navigator) {

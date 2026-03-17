@@ -30,9 +30,11 @@ jobs:
           GOOGLE_TTS_KEY: ${{ secrets.GOOGLE_TTS_KEY }}
           GNEWS_API_KEY: ${{ secrets.GNEWS_API_KEY }}
           CHAT_API_URL: ${{ secrets.CHAT_API_URL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: |
-          printf '// このファイルはデプロイ時に自動生成されます\nconst WEATHER_API_KEY = "%s";\nconst GEMINI_API_KEY  = "%s";\nconst GNEWS_API_KEY   = "%s";\nconst GOOGLE_TTS_KEY  = "%s";\nconst CHAT_API_URL    = "%s";\n' \
-            "$WEATHER_API_KEY" "$GEMINI_API_KEY" "$GNEWS_API_KEY" "$GOOGLE_TTS_KEY" "$CHAT_API_URL" > config.js
+          printf '// このファイルはデプロイ時に自動生成されます\nconst WEATHER_API_KEY  = "%s";\nconst GEMINI_API_KEY   = "%s";\nconst GNEWS_API_KEY    = "%s";\nconst GOOGLE_TTS_KEY   = "%s";\nconst CHAT_API_URL     = "%s";\nconst SUPABASE_URL     = "%s";\nconst SUPABASE_ANON_KEY = "%s";\n' \
+            "$WEATHER_API_KEY" "$GEMINI_API_KEY" "$GNEWS_API_KEY" "$GOOGLE_TTS_KEY" "$CHAT_API_URL" "$SUPABASE_URL" "$SUPABASE_ANON_KEY" > config.js
 
       - name: GitHub Pages の設定
         uses: actions/configure-pages@v4
