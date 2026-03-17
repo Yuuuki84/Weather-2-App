@@ -2218,7 +2218,7 @@ function setAuthMsg(type, msg) {
     fontSizes.forEach(c => document.body.classList.remove(c));
     document.body.classList.add(fontSizes[idx]);
     const btn = document.getElementById('font-size-btn');
-    if (btn) btn.textContent = ['ａ', 'Ａ', 'Ａ'][idx] || 'Ａ';
+    if (btn) { btn.textContent = ['ａ', 'Ａ', '𝐀'][idx] || 'Ａ'; btn.title = ['小', '中', '大'][idx] + ' フォントサイズ'; }
   }
   applyFontSize(fontSizeIdx);
   document.getElementById('font-size-btn')?.addEventListener('click', () => {
