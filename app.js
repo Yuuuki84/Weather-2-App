@@ -1247,22 +1247,37 @@ async function fetchGNews(category) {
   return articles;
 }
 
-// RSS フィード（disaster はこちらを使用 / NHK社会ニュースはallorigins.win経由で動作確認済み）
+// RSS フィード（disaster はこちらを使用）
 const RSS_FEEDS = {
-  disaster: 'https://www3.nhk.or.jp/rss/news/cat1.xml', // NHK 社会ニュース（災害・事件含む）
+  // Yahoo Japan 災害ニュース RSS（corsproxy.io 経由で取得）
+  disaster: 'https://news.yahoo.co.jp/rss/topics/disaster.xml',
 };
+
+// CORS プロキシ（フォールバック付き）
+async function fetchWithProxy(rssUrl) {
+  // 1st: corsproxy.io
+  try {
+    const res = await fetch('https://corsproxy.io/?' + encodeURIComponent(rssUrl), { signal: timeoutSignal(12000) });
+    if (res.ok) {
+      const text = await res.text();
+      if (text && text.trim().startsWith('<')) return text;
+    }
+  } catch {}
+  // 2nd: allorigins.win (fallback)
+  const res2 = await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent(rssUrl), { signal: timeoutSignal(12000) });
+  if (!res2.ok) throw new Error('HTTP ' + res2.status);
+  const data = await res2.json();
+  if (!data.contents) throw new Error('コンテンツ取得失敗');
+  return data.contents;
+}
 
 async function fetchRSSNews(category) {
   const now = Date.now();
   if (newsCache[category] && (now - newsCache[category].ts) < CACHE_TTL) return newsCache[category].articles;
   const rssUrl = RSS_FEEDS[category];
   if (!rssUrl) throw new Error('RSS未設定');
-  const proxyUrl = 'https://api.allorigins.win/get?url=' + encodeURIComponent(rssUrl);
-  const res = await fetch(proxyUrl, { signal: timeoutSignal(15000) });
-  if (!res.ok) throw new Error('HTTP ' + res.status);
-  const data = await res.json();
-  if (!data.contents) throw new Error('コンテンツ取得失敗');
-  const xml = new DOMParser().parseFromString(data.contents, 'text/xml');
+  const xmlText = await fetchWithProxy(rssUrl);
+  const xml = new DOMParser().parseFromString(xmlText, 'text/xml');
   const items = Array.from(xml.querySelectorAll('item'));
   if (!items.length) throw new Error('記事が見つかりませんでした');
   const feedTitle = xml.querySelector('channel > title')?.textContent || 'ニュース';
