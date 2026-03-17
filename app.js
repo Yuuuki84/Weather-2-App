@@ -1206,7 +1206,7 @@ async function getWeatherByGeo() {
 const CATEGORY_LABEL = {
   general:'トップ', technology:'テクノロジー', science:'サイエンス',
   sports:'スポーツ', entertainment:'エンタメ', health:'ヘルス', business:'ビジネス',
-  disaster:'🚨 災害', pet:'ペット🐩',
+  disaster:'🚨 災害',
 };
 
 // GNews API カテゴリマッピング
@@ -1247,10 +1247,9 @@ async function fetchGNews(category) {
   return articles;
 }
 
-// RSS フィード（disaster / pet はこちらを使用）
+// RSS フィード（disaster はこちらを使用）
 const RSS_FEEDS = {
   disaster: 'https://news.google.com/rss/search?q=%E5%9C%B0%E9%9C%87+OR+%E5%8F%B0%E9%A2%A8+OR+%E5%A4%A7%E9%9B%A8+OR+%E9%81%BF%E9%9B%A3+OR+%E7%89%B9%E5%88%A5%E8%AD%A6%E5%A0%B1&hl=ja&gl=JP&ceid=JP:ja',
-  pet:      'https://news.google.com/rss/search?q=%E3%83%9A%E3%83%83%E3%83%88+%E7%8A%AC+%E7%8C%AB&hl=ja&gl=JP&ceid=JP:ja',
 };
 
 async function fetchRSSNews(category) {
@@ -1295,8 +1294,8 @@ async function fetchAndRenderNews(category) {
   }
   renderNewsSkeleton();
   try {
-    // disaster / pet は RSS、それ以外は GNews API
-    const articles = (category === 'disaster' || category === 'pet')
+    // disaster は RSS、それ以外は GNews API
+    const articles = category === 'disaster'
       ? await fetchRSSNews(category)
       : await fetchGNews(category);
     if (articles.length > 0) { renderNewsCards(articles, label); return; }
