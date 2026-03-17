@@ -1745,19 +1745,26 @@ function attachNewsListeners(container) {
       e.stopPropagation();
       const box = btn.closest('.news-body')?.querySelector('.news-summary-box');
       if (!box) return;
-      // トグル：要約済みなら閉じる
-      if (box.classList.contains('visible')) {
+      // 閉じるモード
+      if (box.classList.contains('visible') && !btn.dataset.error) {
         box.classList.remove('visible');
         btn.textContent = '✨ 要約';
+        delete btn.dataset.error;
         return;
       }
       btn.disabled = true;
       btn.textContent = '…';
+      delete btn.dataset.error;
       const summary = await summarizeArticle(btn.dataset.url, btn.dataset.title, btn.dataset.desc);
       box.textContent = summary;
       box.classList.add('visible');
       btn.disabled = false;
-      btn.textContent = '✕ 閉じる';
+      if (summary.startsWith('⚠️')) {
+        btn.dataset.error = '1';
+        btn.textContent = '↺ 再試行';
+      } else {
+        btn.textContent = '✕ 閉じる';
+      }
     });
   });
   // スワイプ操作をすべてのニュースカードに適用
@@ -1848,7 +1855,10 @@ async function summarizeArticle(url, title, description) {
       { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: controller.signal }
     );
     clearTimeout(tid);
-    if (res.status === 429) return '⚠️ 現在リクエストが集中しています。しばらくしてから再試行してください。';
+    if (res.status === 429) {
+      const retryAfter = parseInt(res.headers.get('Retry-After') || '60', 10);
+      return `⚠️ 利用制限に達しました。${retryAfter}秒ほど待ってから「↺ 再試行」をクリックしてください。`;
+    }
     if (!res.ok) return `⚠️ 要約の取得に失敗しました（${res.status}）`;
     const data = await res.json();
     const text = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
