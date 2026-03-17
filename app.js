@@ -998,6 +998,8 @@ function renderWeather(data, unit) {
   currentCity = data.name || '';
   updateFavBtn(currentCity);
   checkWeatherAlert(data, unit);
+  _jmaWarningDismissed = false;
+  fetchJMAWarnings(currentCity);
 
   // AI チャット
   initChatSection(data, unit);
@@ -1367,6 +1369,125 @@ const JP_CITY_ROMAJI = {
   '那覇':'Naha','沖縄市':'Okinawa City',
 };
 
+// ===== JMA 警報・注意報 =====
+// OWM英語都市名 → JMA都道府県コード
+const JMA_PREF_CODE = {
+  'Sapporo':'011000','Asahikawa':'012000','Hakodate':'017000','Kushiro':'014100','Obihiro':'014030',
+  'Aomori':'020000','Hachinohe':'020000','Hirosaki':'020000',
+  'Morioka':'030000',
+  'Sendai':'040000','Ishinomaki':'040000',
+  'Akita':'050000',
+  'Yamagata':'060000',
+  'Fukushima-shi':'070000','Koriyama':'070000','Iwaki':'070000',
+  'Mito':'080000',
+  'Utsunomiya':'090000',
+  'Maebashi':'100000',
+  'Saitama':'110000',
+  'Chiba':'120000',
+  'Tokyo':'130000','Shinjuku':'130000','Shibuya':'130000',
+  'Yokohama':'140000','Kawasaki':'140000',
+  'Niigata':'150000',
+  'Toyama':'160000',
+  'Kanazawa':'170000',
+  'Fukui':'180000',
+  'Kofu':'190000',
+  'Nagano':'200000','Matsumoto':'200000',
+  'Gifu':'210000',
+  'Shizuoka':'220000','Hamamatsu':'220000',
+  'Nagoya':'230000',
+  'Tsu':'240000',
+  'Otsu':'250000',
+  'Kyoto':'260000',
+  'Osaka':'270000',
+  'Kobe':'280000','Himeji':'280000',
+  'Nara':'290000',
+  'Wakayama':'300000',
+  'Tottori':'310000',
+  'Matsue':'320000',
+  'Okayama':'330000',
+  'Hiroshima':'340000',
+  'Yamaguchi':'350000',
+  'Tokushima':'360000',
+  'Takamatsu':'370000',
+  'Matsuyama':'380000',
+  'Kochi':'390000',
+  'Fukuoka':'400000','Kitakyushu':'400000',
+  'Saga':'410000',
+  'Nagasaki':'420000',
+  'Kumamoto':'430000',
+  'Oita':'440000',
+  'Miyazaki':'450000',
+  'Kagoshima':'460100',
+  'Naha':'471000',
+};
+
+let _jmaWarningDismissed = false;
+
+async function fetchJMAWarnings(owmCityName) {
+  const prefCode = JMA_PREF_CODE[owmCityName];
+  if (!prefCode) { hideWarningBanner(); return; }
+  try {
+    const res = await fetch(
+      `https://www.jma.go.jp/bosai/warning/data/warning/${prefCode}.json`,
+      { signal: timeoutSignal(8000) }
+    );
+    if (!res.ok) return;
+    const data = await res.json();
+    const warnings = parseJMAWarnings(data);
+    renderWarningBanner(warnings);
+  } catch {
+    // 警報取得失敗は無視（非クリティカル）
+  }
+}
+
+function parseJMAWarnings(data) {
+  const active = [];
+  const seen = new Set();
+  // areaTypes → areas → warnings
+  for (const at of (data.areaTypes || [])) {
+    for (const area of (at.areas || [])) {
+      for (const w of (area.warnings || [])) {
+        const status = w.status || '';
+        if (status !== '発表' && status !== '継続') continue;
+        const name = w.type?.name || w.typeName || w.name || '';
+        if (!name || seen.has(name)) continue;
+        seen.add(name);
+        // 特別警報 / 警報 / 注意報 の分類
+        const level = name.includes('特別警報') ? 3 : name.includes('警報') ? 2 : 1;
+        active.push({ name, level, area: area.name || '' });
+      }
+    }
+  }
+  return active.sort((a, b) => b.level - a.level);
+}
+
+function renderWarningBanner(warnings) {
+  const banner = document.getElementById('jma-warning-banner');
+  if (!banner) return;
+  if (!warnings.length || _jmaWarningDismissed) { hideWarningBanner(); return; }
+  const maxLevel = warnings[0].level;
+  const cls = maxLevel === 3 ? 'warn-tokubetsu' : maxLevel === 2 ? 'warn-keiho' : 'warn-chuiho';
+  const icon = maxLevel === 3 ? '🚨' : maxLevel === 2 ? '⚠️' : 'ℹ️';
+  const names = [...new Set(warnings.map(w => w.name))].join('・');
+  const area = warnings[0].area;
+  banner.className = cls;
+  banner.innerHTML =
+    '<span class="warn-icon">' + icon + '</span>' +
+    '<span class="warn-body">' + escHtml(area ? area + '：' : '') + escHtml(names) + 'が発令中です</span>' +
+    '<button class="warn-close" aria-label="閉じる" onclick="dismissWarningBanner()">✕</button>';
+  banner.style.display = 'flex';
+}
+
+function hideWarningBanner() {
+  const banner = document.getElementById('jma-warning-banner');
+  if (banner) banner.style.display = 'none';
+}
+
+function dismissWarningBanner() {
+  _jmaWarningDismissed = true;
+  hideWarningBanner();
+}
+
 // 日本語都市名を OWM Geocoding 用クエリに変換
 // - テーブル登録済み → ローマ字 + ",JP"
 // - 未登録の日本語 → 漢字 + ",JP"（フォールバック）
@@ -1520,6 +1641,7 @@ async function fetchGNews(category) {
   }));
 
   newsCache[category] = { ts: now, articles };
+  try { localStorage.setItem('sora_news_offline_' + category, JSON.stringify({ ts: now, articles })); } catch {}
   return articles;
 }
 
@@ -1571,6 +1693,7 @@ async function fetchRSSNews(category) {
     lang:        'ja',
   }));
   newsCache[category] = { ts: now, articles };
+  try { localStorage.setItem('sora_news_offline_' + category, JSON.stringify({ ts: now, articles })); } catch {}
   return articles;
 }
 
@@ -1590,6 +1713,19 @@ async function fetchAndRenderNews(category) {
     if (articles.length > 0) { renderNewsCards(articles, label); return; }
     showNewsMessage('📭', '「' + label + '」の記事が見つかりませんでした', 'しばらく後にお試しください。');
   } catch(e) {
+    // オフラインキャッシュを確認
+    try {
+      const offline = JSON.parse(localStorage.getItem('sora_news_offline_' + category) || 'null');
+      if (offline?.articles?.length) {
+        renderNewsCards(offline.articles, label);
+        const age = Math.round((Date.now() - offline.ts) / 60000);
+        const offlineBar = document.createElement('div');
+        offlineBar.style.cssText = 'text-align:center;font-size:11px;color:var(--text2);padding:6px 0 2px;';
+        offlineBar.textContent = '📴 オフラインキャッシュ（' + age + '分前のデータ）';
+        newsContainer.prepend(offlineBar);
+        return;
+      }
+    } catch {}
     showNewsMessage('⚠️', 'ニュースの取得に失敗しました',
       String(e.message || e) + '<br><small style="opacity:.7">ニュース API</small>');
   }
@@ -1740,6 +1876,32 @@ function attachNewsListeners(container) {
       btn.classList.toggle('bookmarked', bmarked);
     });
   });
+  container.querySelectorAll('.news-summary-btn').forEach(btn => {
+    btn.addEventListener('click', async e => {
+      e.stopPropagation();
+      const box = btn.closest('.news-body')?.querySelector('.news-summary-box');
+      if (!box) return;
+      if (box.classList.contains('visible') && !btn.dataset.isError) {
+        box.classList.remove('visible');
+        btn.textContent = '✨ 要約';
+        delete btn.dataset.isError;
+        return;
+      }
+      btn.disabled = true;
+      btn.textContent = '…';
+      delete btn.dataset.isError;
+      const summary = await summarizeArticle(btn.dataset.url, btn.dataset.title, btn.dataset.desc);
+      box.textContent = summary;
+      box.classList.add('visible');
+      btn.disabled = false;
+      if (summary.startsWith('⚠️')) {
+        btn.dataset.isError = '1';
+        btn.textContent = '↺ 再試行';
+      } else {
+        btn.textContent = '✕ 閉じる';
+      }
+    });
+  });
   // スワイプ操作をすべてのニュースカードに適用
   container.querySelectorAll('.news-card').forEach(attachSwipeToCard);
 }
@@ -1788,6 +1950,11 @@ function newsCardHTML(a, featured, categoryLabel, readSet) {
         '<span style="display:flex;gap:6px;align-items:center;">' +
           (timeStr ? '<span class="news-time">' + timeStr + '</span>' : '') +
           readBadge +
+          '<button class="news-summary-btn"' +
+            ' data-url="' + escHtml(a.url) + '"' +
+            ' data-title="' + escHtml(a.title) + '"' +
+            ' data-desc="' + escHtml(a.description || '') + '"' +
+            ' title="AIで要約" aria-label="AIで要約">✨ 要約</button>' +
           '<button class="news-bmark-btn' + (isBookmarked(a.url) ? ' bookmarked' : '') + '"' +
             ' data-url="' + escHtml(a.url) + '"' +
             ' data-title="' + escHtml(a.title) + '"' +
@@ -1799,7 +1966,47 @@ function newsCardHTML(a, featured, categoryLabel, readSet) {
           '</button>' +
         '</span>' +
       '</div>' +
+      '<div class="news-summary-box"></div>' +
     '</div></div>';
+}
+
+// ===== Workers AI 要約 =====
+function cleanSummaryText(text) {
+  return text
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/\*(.+?)\*/g, '$1')
+    .replace(/^[-•*#>]+\s*/gm, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+async function summarizeArticle(url, title, description) {
+  const cacheKey = 'sora_summary_' + url;
+  const cached = sessionStorage.getItem(cacheKey);
+  if (cached) return cached;
+  if (!CHAT_API_URL || CHAT_API_URL === 'YOUR_CHAT_WORKER_URL') return '⚠️ Worker URLが未設定です。';
+  const controller = new AbortController();
+  const tid = setTimeout(() => controller.abort(), 15000);
+  try {
+    const res = await fetch(CHAT_API_URL + '/api/summarize', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, description }),
+      signal: controller.signal,
+    });
+    clearTimeout(tid);
+    if (!res.ok) return `⚠️ 要約の取得に失敗しました（${res.status}）`;
+    const data = await res.json();
+    if (data.error) return `⚠️ ${data.error}`;
+    const text = cleanSummaryText(data.summary || '');
+    if (!text) return '⚠️ 要約を取得できませんでした。';
+    sessionStorage.setItem(cacheKey, text);
+    return text;
+  } catch (e) {
+    clearTimeout(tid);
+    if (e.name === 'AbortError') return '⚠️ タイムアウトしました。';
+    return '⚠️ 要約の取得中にエラーが発生しました。';
+  }
 }
 
 function escHtml(str) {

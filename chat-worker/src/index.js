@@ -14,6 +14,12 @@ const SYSTEM_PROMPT =
   '天気データが提供された場合は、数値の羅列ではなく「今日は冷え込みますね」「風が強めです」のような自然な表現を使ってください。' +
   '返答は150〜200文字程度で、箇条書きは使わず自然な会話文で書いてください。';
 
+const SUMMARIZE_PROMPT =
+  'あなたはニュース記事の要約専門家です。' +
+  '【厳守】返答は必ず純粋な日本語のみで書いてください。' +
+  '英単語・記号（*、-、#、>、「」以外の括弧など）・箇条書き・見出しは一切使わないでください。' +
+  '2〜3文の自然な会話文のみで要約してください。改行も使わないでください。';
+
 const GNEWS_CATEGORY = {
   general: 'general', technology: 'technology', science: 'science',
   sports: 'sports', entertainment: 'entertainment', health: 'health', business: 'business',
@@ -38,6 +44,19 @@ export default {
     // ニュース API
     if (url.pathname === '/api/news' && request.method === 'GET') {
       return handleNews(url, origin, env, ctx);
+    }
+
+    // 要約 API
+    if (url.pathname === '/api/summarize' && request.method === 'POST') {
+      try {
+        const { title, description } = await request.json();
+        if (!title?.trim()) return jsonRes({ error: 'title が必要です' }, 400, origin);
+        const summary = await callSummarizeAI(title, description, env.AI);
+        return jsonRes({ summary }, 200, origin);
+      } catch (e) {
+        console.error(e);
+        return jsonRes({ error: e.message || '内部エラー' }, 500, origin);
+      }
     }
 
     // チャット API
@@ -103,6 +122,19 @@ async function fetchGNews(category, apiKey) {
   } catch (e) {
     return { error: e.message || 'fetch失敗' };
   }
+}
+
+// ===== Workers AI 要約 =====
+async function callSummarizeAI(title, description, ai) {
+  if (!ai) throw new Error('AI binding が未設定です');
+  const messages = [
+    { role: 'system', content: SUMMARIZE_PROMPT },
+    { role: 'user', content: `タイトル: ${title}\n本文抜粋: ${description || 'なし'}\n\n上記を2〜3文の日本語で要約してください。` },
+  ];
+  const response = await ai.run(AI_MODEL, { messages, max_tokens: 200 });
+  const text = response.response;
+  if (!text) throw new Error('空のレスポンスが返りました');
+  return text.trim();
 }
 
 // ===== Workers AI チャット =====
