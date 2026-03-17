@@ -1,10 +1,18 @@
 // ===== Supabase 認証・DB モジュール =====
 
-const _sb = (
-  typeof SUPABASE_URL !== 'undefined' &&
-  typeof SUPABASE_ANON_KEY !== 'undefined' &&
-  typeof window.supabase !== 'undefined'
-) ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+// 空文字・未定義・CDN未ロードをすべてチェックしてから初期化
+function _createSbClient() {
+  try {
+    if (typeof SUPABASE_URL === 'undefined' || !SUPABASE_URL) return null;
+    if (typeof SUPABASE_ANON_KEY === 'undefined' || !SUPABASE_ANON_KEY) return null;
+    if (typeof window.supabase === 'undefined' || !window.supabase?.createClient) return null;
+    return window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  } catch(e) {
+    console.warn('[Supabase] 初期化失敗:', e.message);
+    return null;
+  }
+}
+const _sb = _createSbClient();
 
 let _sbUser = null;
 
