@@ -1247,9 +1247,9 @@ async function fetchGNews(category) {
   return articles;
 }
 
-// RSS フィード（disaster はこちらを使用）
+// RSS フィード（disaster はこちらを使用 / NHK社会ニュースはallorigins.win経由で動作確認済み）
 const RSS_FEEDS = {
-  disaster: 'https://news.google.com/rss/search?q=%E5%9C%B0%E9%9C%87+OR+%E5%8F%B0%E9%A2%A8+OR+%E5%A4%A7%E9%9B%A8+OR+%E9%81%BF%E9%9B%A3+OR+%E7%89%B9%E5%88%A5%E8%AD%A6%E5%A0%B1&hl=ja&gl=JP&ceid=JP:ja',
+  disaster: 'https://www3.nhk.or.jp/rss/news/cat1.xml', // NHK 社会ニュース（災害・事件含む）
 };
 
 async function fetchRSSNews(category) {
