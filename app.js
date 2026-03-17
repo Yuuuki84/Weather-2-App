@@ -1986,7 +1986,7 @@ async function summarizeArticle(url, title, description) {
   if (cached) return cached;
   if (!CHAT_API_URL || CHAT_API_URL === 'YOUR_CHAT_WORKER_URL') return '⚠️ Worker URLが未設定です。';
   const controller = new AbortController();
-  const tid = setTimeout(() => controller.abort(), 15000);
+  const tid = setTimeout(() => controller.abort(), 30000);
   try {
     const res = await fetch(CHAT_API_URL + '/api/summarize', {
       method: 'POST',
