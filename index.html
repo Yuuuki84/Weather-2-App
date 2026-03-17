@@ -1414,6 +1414,23 @@
     .news-bmark-btn:hover { color: var(--accent2); transform: scale(1.25); }
     .news-bmark-btn.bookmarked { color: #fbbf24; }
 
+    /* ===== GEMINI 要約ボタン & 表示 ===== */
+    .news-summary-btn {
+      background: none; border: 1px solid var(--accent); cursor: pointer;
+      font-size: 11px; color: var(--accent); padding: 2px 7px; border-radius: 10px;
+      transition: background .15s, color .15s; line-height: 1.4; flex-shrink: 0;
+      white-space: nowrap;
+    }
+    .news-summary-btn:hover { background: var(--accent); color: #fff; }
+    .news-summary-btn:disabled { opacity: 0.5; cursor: default; }
+    .news-summary-box {
+      font-size: 12px; line-height: 1.65; color: var(--text2);
+      background: var(--surface2); border-left: 3px solid var(--accent);
+      padding: 8px 12px; margin-top: 8px; border-radius: 0 8px 8px 0;
+      display: none;
+    }
+    .news-summary-box.visible { display: block; }
+
     /* ===== WEEKLY TREND ARROW ===== */
     .weekly-trend { font-size: 11px; font-weight: 700; }
     .weekly-trend.up   { color: #f87171; }

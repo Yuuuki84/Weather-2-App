@@ -1740,6 +1740,26 @@ function attachNewsListeners(container) {
       btn.classList.toggle('bookmarked', bmarked);
     });
   });
+  container.querySelectorAll('.news-summary-btn').forEach(btn => {
+    btn.addEventListener('click', async e => {
+      e.stopPropagation();
+      const box = btn.closest('.news-body')?.querySelector('.news-summary-box');
+      if (!box) return;
+      // トグル：要約済みなら閉じる
+      if (box.classList.contains('visible')) {
+        box.classList.remove('visible');
+        btn.textContent = '✨ 要約';
+        return;
+      }
+      btn.disabled = true;
+      btn.textContent = '…';
+      const summary = await summarizeArticle(btn.dataset.url, btn.dataset.title, btn.dataset.desc);
+      box.textContent = summary;
+      box.classList.add('visible');
+      btn.disabled = false;
+      btn.textContent = '✕ 閉じる';
+    });
+  });
   // スワイプ操作をすべてのニュースカードに適用
   container.querySelectorAll('.news-card').forEach(attachSwipeToCard);
 }
@@ -1788,6 +1808,11 @@ function newsCardHTML(a, featured, categoryLabel, readSet) {
         '<span style="display:flex;gap:6px;align-items:center;">' +
           (timeStr ? '<span class="news-time">' + timeStr + '</span>' : '') +
           readBadge +
+          '<button class="news-summary-btn"' +
+            ' data-url="' + escHtml(a.url) + '"' +
+            ' data-title="' + escHtml(a.title) + '"' +
+            ' data-desc="' + escHtml(a.description || '') + '"' +
+            ' title="AIで要約" aria-label="AIで要約">✨ 要約</button>' +
           '<button class="news-bmark-btn' + (isBookmarked(a.url) ? ' bookmarked' : '') + '"' +
             ' data-url="' + escHtml(a.url) + '"' +
             ' data-title="' + escHtml(a.title) + '"' +
@@ -1799,7 +1824,42 @@ function newsCardHTML(a, featured, categoryLabel, readSet) {
           '</button>' +
         '</span>' +
       '</div>' +
+      '<div class="news-summary-box"></div>' +
     '</div></div>';
+}
+
+// ===== Gemini 要約 =====
+async function summarizeArticle(url, title, description) {
+  const cacheKey = 'sora_summary_' + url;
+  const cached = sessionStorage.getItem(cacheKey);
+  if (cached) return cached;
+
+  const prompt = `以下のニュース記事を2〜3文の自然な日本語で要約してください。箇条書きは使わず会話文で。\nタイトル: ${title}\n本文抜粋: ${description || 'なし'}`;
+  const body = {
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig: { maxOutputTokens: 200, temperature: 0.4 }
+  };
+
+  const controller = new AbortController();
+  const tid = setTimeout(() => controller.abort(), 10000);
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: controller.signal }
+    );
+    clearTimeout(tid);
+    if (res.status === 429) return '⚠️ 現在リクエストが集中しています。しばらくしてから再試行してください。';
+    if (!res.ok) return `⚠️ 要約の取得に失敗しました（${res.status}）`;
+    const data = await res.json();
+    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+    if (!text) return '⚠️ 要約を取得できませんでした。';
+    sessionStorage.setItem(cacheKey, text);
+    return text;
+  } catch (e) {
+    clearTimeout(tid);
+    if (e.name === 'AbortError') return '⚠️ タイムアウトしました。ネットワーク状況をご確認ください。';
+    return '⚠️ 要約の取得中にエラーが発生しました。';
+  }
 }
 
 function escHtml(str) {
