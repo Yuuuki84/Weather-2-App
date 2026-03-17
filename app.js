@@ -19,6 +19,7 @@ const LS = {
   newsRead:  'sora_news_read',
   bookmarks: 'sora_bookmarks',
   notif:     'sora_notif',
+  fontSize:  'sora_font_size',
 };
 
 // ===== 人気都市（オートコンプリート候補） =====
@@ -53,6 +54,7 @@ let particles       = [];
 let particleAnim    = null;
 let pCtx            = null;
 let lastCoords        = null; // { lat, lon }
+let _cachedGeo        = null; // オートコンプリートで選択した lat/lon キャッシュ
 let currentWeatherData = null;
 let currentCity       = '';
 let chartInstance     = null;
@@ -90,9 +92,32 @@ function clearError() {
   const retryBtn = document.getElementById('error-retry-btn');
   if (retryBtn) retryBtn.style.display = 'none';
 }
+let _countdownTimer = null;
+function showError429(seconds) {
+  if (_countdownTimer) clearInterval(_countdownTimer);
+  clearError();
+  errorBar.classList.add('show');
+  let remaining = seconds;
+  const update = () => {
+    errorText.innerHTML = 'APIリクエスト制限中です。<span class="countdown">' + remaining + '秒</span>後に再試行できます。';
+    if (remaining-- <= 0) {
+      clearInterval(_countdownTimer);
+      _countdownTimer = null;
+      errorBar.classList.remove('show');
+    }
+  };
+  update();
+  _countdownTimer = setInterval(update, 1000);
+}
 function showResult(on) {
   weatherResult.classList.toggle('show', on);
   weatherResult.style.display = on ? 'block' : 'none';
+}
+function showWeatherSkeleton() {
+  weatherResult.classList.add('show', 'skeleton-loading');
+}
+function hideWeatherSkeleton() {
+  weatherResult.classList.remove('skeleton-loading');
 }
 function safeText(id, val) {
   const el = document.getElementById(id);
@@ -176,6 +201,8 @@ function saveHistory(city) {
   const next = [c, ...loadHistory().filter(x=>x!==c)].slice(0,8);
   localStorage.setItem(LS.history, JSON.stringify(next));
   renderHistory();
+  // クラウド同期（ログイン中のみ）
+  if (sbCurrentUser()) sbSaveSettings({ search_history: next });
 }
 function clearHistory() { localStorage.removeItem(LS.history); renderHistory(); }
 function deleteHistoryItem(city) {
@@ -306,6 +333,77 @@ function setShareLink(city) {
   u.searchParams.set('city', city);
   const el = document.getElementById('share-link');
   if (el) el.href = u.toString();
+}
+
+// ===== AQI 大気質指数 =====
+const AQI_LABELS = ['', '良好', '良い', '普通', '悪い', '非常に悪い'];
+const AQI_CLASSES = ['', 'aqi-1', 'aqi-2', 'aqi-3', 'aqi-4', 'aqi-5'];
+
+async function fetchAndRenderAQI(lat, lon) {
+  const card = document.getElementById('aqi-card');
+  const valEl = document.getElementById('aqi-value');
+  const lblEl = document.getElementById('aqi-label');
+  if (!card) return;
+  try {
+    const r = await fetchJson(
+      'https://api.openweathermap.org/data/2.5/air_pollution?lat=' + lat + '&lon=' + lon + '&appid=' + WEATHER_API_KEY,
+      10000
+    );
+    if (!r.ok || !r.data?.list?.length) { card.style.display = 'none'; return; }
+    const aqi = r.data.list[0].main.aqi; // 1-5
+    const components = r.data.list[0].components;
+    valEl.textContent = aqi;
+    valEl.className = 'kv-value ' + (AQI_CLASSES[aqi] || '');
+    lblEl.textContent = (AQI_LABELS[aqi] || '—') +
+      (components?.pm2_5 != null ? '  PM2.5: ' + components.pm2_5.toFixed(1) + ' μg/m³' : '');
+    card.style.display = '';
+  } catch { card.style.display = 'none'; }
+}
+
+// ===== Open-Meteo フォールバック天気プロバイダー =====
+const OM_WMO_MAP = {
+  0:'晴れ',1:'おおむね晴れ',2:'一部曇り',3:'曇り',
+  45:'霧',48:'着氷性の霧',51:'霧雨(弱)',53:'霧雨',55:'霧雨(強)',
+  61:'雨(弱)',63:'雨',65:'雨(強)',71:'雪(弱)',73:'雪',75:'雪(強)',
+  80:'にわか雨(弱)',81:'にわか雨',82:'にわか雨(強)',
+  95:'雷雨',96:'雹を伴う雷雨',99:'強い雹を伴う雷雨'
+};
+const OM_WMO_ICON = {
+  0:'01d',1:'01d',2:'02d',3:'04d',45:'50d',48:'50d',
+  51:'09d',53:'09d',55:'09d',61:'10d',63:'10d',65:'10d',
+  71:'13d',73:'13d',75:'13d',80:'09d',81:'09d',82:'09d',
+  95:'11d',96:'11d',99:'11d'
+};
+
+async function fetchWeatherOpenMeteo(lat, lon, unit) {
+  try {
+    const tempUnit = unit === 'imperial' ? 'fahrenheit' : 'celsius';
+    const url = 'https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lon +
+      '&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,surface_pressure,wind_speed_10m,wind_direction_10m' +
+      '&temperature_unit=' + tempUnit + '&wind_speed_unit=ms&timezone=auto';
+    const r = await fetchJson(url, 12000);
+    if (!r.ok || !r.data?.current) return null;
+    const c = r.data.current;
+    const wmo = c.weather_code ?? 0;
+    return {
+      name: '(フォールバック)',
+      sys: { country: '', sunrise: null, sunset: null },
+      coord: { lat, lon },
+      weather: [{ description: OM_WMO_MAP[wmo] || '—', icon: OM_WMO_ICON[wmo] || '01d' }],
+      main: {
+        temp: c.temperature_2m, feels_like: c.apparent_temperature,
+        temp_min: c.temperature_2m, temp_max: c.temperature_2m,
+        humidity: c.relative_humidity_2m, pressure: c.surface_pressure
+      },
+      wind: { speed: c.wind_speed_10m, deg: c.wind_direction_10m },
+      rain: c.precipitation > 0 ? { '1h': c.precipitation } : undefined,
+      snow: undefined,
+      clouds: { all: 0 },
+      dt: Math.floor(Date.now() / 1000),
+      timezone: 0,
+      _isFallback: true
+    };
+  } catch { return null; }
 }
 
 // ===== 予報（24h・週間） =====
@@ -712,21 +810,69 @@ function _speakFallback() {
 }
 
 // ===== オートコンプリート =====
-function renderAC(q) {
-  if (!q) { acBox.classList.remove('show'); return; }
-  const matches = POPULAR_CITIES.filter(c => c.toLowerCase().startsWith(q.toLowerCase())).slice(0,6);
-  if (!matches.length) { acBox.classList.remove('show'); return; }
-  acBox.innerHTML = matches.map(c =>
-    '<div class="ac-item"><span class="ac-item-icon">📍</span>' + c + '</div>'
+// オートコンプリート用状態
+let _acDebounceTimer = null;
+let _acAbortCtrl = null;
+
+function renderACItems(items, isFromApi) {
+  if (!items.length) { acBox.classList.remove('show'); return; }
+  acBox.innerHTML = items.map((item, i) =>
+    '<div class="ac-item" data-idx="' + i + '">' +
+    '<span class="ac-item-icon">' + (isFromApi ? '🔍' : '📍') + '</span>' +
+    item.label + '</div>'
   ).join('');
-  acBox.querySelectorAll('.ac-item').forEach((el,i) => {
+  acBox.querySelectorAll('.ac-item').forEach((el, i) => {
     el.addEventListener('click', () => {
-      cityInput.value = matches[i];
       acBox.classList.remove('show');
-      getWeatherByCity(matches[i]);
+      if (items[i].lat != null) {
+        // API候補: lat/lon キャッシュを使って直接天気取得
+        cityInput.value = items[i].displayName;
+        _cachedGeo = { lat: items[i].lat, lon: items[i].lon, name: items[i].displayName };
+        getWeatherByCity(items[i].displayName);
+      } else {
+        cityInput.value = items[i].label;
+        getWeatherByCity(items[i].label);
+      }
     });
   });
   acBox.classList.add('show');
+}
+
+async function renderAC(q) {
+  clearTimeout(_acDebounceTimer);
+  if (!q || q.length < 1) { acBox.classList.remove('show'); return; }
+
+  // ローカルリストで即時表示
+  const localMatches = POPULAR_CITIES
+    .filter(c => c.toLowerCase().startsWith(q.toLowerCase()))
+    .slice(0, 5)
+    .map(c => ({ label: c, displayName: c, lat: null, lon: null }));
+  if (localMatches.length) renderACItems(localMatches, false);
+
+  // 2文字以上でAPIも叩く（デバウンス300ms）
+  if (q.length < 2) return;
+  _acDebounceTimer = setTimeout(async () => {
+    if (_acAbortCtrl) _acAbortCtrl.abort();
+    _acAbortCtrl = new AbortController();
+    try {
+      const gq = buildGeoQuery(q);
+      const url = 'https://api.openweathermap.org/geo/1.0/direct?q=' + encodeURIComponent(gq) + '&limit=5&appid=' + WEATHER_API_KEY;
+      const res = await fetch(url, { signal: _acAbortCtrl.signal });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!Array.isArray(data) || !data.length) return;
+      const apiItems = data.map(d => {
+        const ja = d.local_names?.ja || d.name;
+        const parts = [ja];
+        if (d.state) parts.push(d.state);
+        parts.push(d.country);
+        return { label: parts.join(', '), displayName: ja, lat: d.lat, lon: d.lon };
+      });
+      renderACItems(apiItems, true);
+    } catch (e) {
+      if (e.name !== 'AbortError') console.warn('[AC]', e.message);
+    }
+  }, 300);
 }
 
 // ===== 動的背景 =====
@@ -845,6 +991,7 @@ function renderWeather(data, unit) {
   );
 
   generateAdvice(data, unit);
+  hideWeatherSkeleton();
   showResult(true);
 
   currentWeatherData = { data, unit };
@@ -1238,29 +1385,49 @@ async function getWeatherByCity(cityRaw) {
   const unit = unitSelect.value;
   clearError(); showResult(false); acBox.classList.remove('show');
   if (!city) { showError('都市名を入力してください。'); return; }
+
+  // スケルトン表示
+  showWeatherSkeleton();
   setLoading(true, '都市を検索しています...');
   try {
-    const geo = await fetchJson(
-      'https://api.openweathermap.org/geo/1.0/direct?q=' + encodeURIComponent(buildGeoQuery(city)) + '&limit=1&appid=' + WEATHER_API_KEY
-    );
-    if (geo.status === 429) { showError('APIリクエスト制限中です。しばらく待ってから再試行してください。'); return; }
-    if (!geo.ok) { showError('都市検索に失敗しました（HTTP ' + geo.status + '）'); return; }
-    if (!Array.isArray(geo.data) || !geo.data.length) {
-      showError('「' + city + '」は見つかりませんでした。別の都市名をお試しください。'); return;
+    let lat, lon;
+
+    // オートコンプリートで lat/lon がキャッシュされている場合はスキップ
+    if (_cachedGeo && _cachedGeo.name === city) {
+      ({ lat, lon } = _cachedGeo);
+      _cachedGeo = null;
+    } else {
+      _cachedGeo = null;
+      const geo = await fetchJson(
+        'https://api.openweathermap.org/geo/1.0/direct?q=' + encodeURIComponent(buildGeoQuery(city)) + '&limit=1&appid=' + WEATHER_API_KEY
+      );
+      if (geo.status === 429) { showError429(60); return; }
+      if (!geo.ok) { showError('都市検索に失敗しました（HTTP ' + geo.status + '）'); return; }
+      if (!Array.isArray(geo.data) || !geo.data.length) {
+        showError('「' + city + '」は見つかりませんでした。別の都市名をお試しください。'); return;
+      }
+      ({ lat, lon } = geo.data[0]);
     }
-    const { lat, lon } = geo.data[0];
+
     lastCoords = { lat, lon };
     setLoading(true, '天気データを取得しています...');
     const w = await fetchJson(
       'https://api.openweathermap.org/data/2.5/weather?lat=' + lat + '&lon=' + lon + '&appid=' + WEATHER_API_KEY + '&units=' + unit + '&lang=ja'
     );
-    if (w.status === 429) { showError('APIリクエスト制限中です。しばらく待ってから再試行してください。'); return; }
-    if (!w.ok || w.data?.cod !== 200) { showError('天気情報の取得に失敗しました（HTTP ' + w.status + '）。'); return; }
-    renderWeather(w.data, unit);
+    if (w.status === 429) { showError429(60); return; }
+    if (!w.ok || w.data?.cod !== 200) {
+      // OWMが失敗した場合 Open-Meteo にフォールバック
+      const fb = await fetchWeatherOpenMeteo(lat, lon, unit);
+      if (fb) { renderWeather(fb, unit); }
+      else { showError('天気情報の取得に失敗しました。'); return; }
+    } else {
+      renderWeather(w.data, unit);
+    }
     startAutoRefresh();
     saveHistory(city);
     setShareLink(city);
     fetchAndRenderForecast(lat, lon, unit);
+    fetchAndRenderAQI(lat, lon);
     setTimeout(() => initOrUpdateMap(lat, lon), 500);
     fetchAndRenderNews(currentCategory);
   } catch(e) {
@@ -1274,6 +1441,7 @@ async function getWeatherByGeo() {
   clearError(); showResult(false);
   if (!navigator.geolocation) { showError('このブラウザは位置情報に対応していません。'); return; }
   setLoading(true, '現在地を取得しています...');
+  showWeatherSkeleton();
   navigator.geolocation.getCurrentPosition(async pos => {
     try {
       const unit = unitSelect.value;
@@ -1283,12 +1451,19 @@ async function getWeatherByGeo() {
       const w = await fetchJson(
         'https://api.openweathermap.org/data/2.5/weather?lat=' + lat + '&lon=' + lon + '&appid=' + WEATHER_API_KEY + '&units=' + unit + '&lang=ja'
       );
-      if (w.status === 429) { showError('APIリクエスト制限中です。しばらく待ってから再試行してください。'); return; }
-      if (!w.ok || w.data?.cod !== 200) { showError('現在地の天気取得に失敗しました（HTTP ' + w.status + '）。'); return; }
-      renderWeather(w.data, unit);
+      if (w.status === 429) { showError429(60); return; }
+      if (!w.ok || w.data?.cod !== 200) {
+        // OWMが失敗した場合 Open-Meteo にフォールバック
+        const fb = await fetchWeatherOpenMeteo(lat, lon, unit);
+        if (fb) { renderWeather(fb, unit); }
+        else { showError('現在地の天気取得に失敗しました。'); return; }
+      } else {
+        renderWeather(w.data, unit);
+      }
       startAutoRefresh();
       if (w.data?.name) { saveHistory(w.data.name); setShareLink(w.data.name); }
       fetchAndRenderForecast(lat, lon, unit);
+      fetchAndRenderAQI(lat, lon);
       setTimeout(() => initOrUpdateMap(lat, lon), 500);
       fetchAndRenderNews(currentCategory);
     } catch(e) {
@@ -1455,10 +1630,93 @@ function renderNewsCards(articles, categoryLabel) {
   const displayed = filtered.slice(0, 20);
   const featured  = displayed.slice(0, 2);
   const rest      = displayed.slice(2);
+
+  // 最初の6件（featured 2 + rest 4）を即時描画、残りは遅延ロード
+  const immediateRest = rest.slice(0, 4);
+  const deferredRest  = rest.slice(4);
+
   newsContainer.innerHTML =
     '<div class="featured-news">' + featured.map(a => newsCardHTML(a, true, categoryLabel, readSet)).join('') + '</div>' +
-    (rest.length ? '<div class="news-grid">' + rest.map(a => newsCardHTML(a, false, categoryLabel, readSet)).join('') + '</div>' : '');
+    (immediateRest.length || deferredRest.length
+      ? '<div class="news-grid" id="news-grid-main">' +
+          immediateRest.map(a => newsCardHTML(a, false, categoryLabel, readSet)).join('') +
+        '</div>'
+      : '');
+
   attachNewsListeners(newsContainer);
+
+  // 残りを IntersectionObserver で遅延レンダリング
+  if (deferredRest.length > 0) {
+    const BATCH = 6;
+    let queue = deferredRest.slice();
+    const sentinel = document.createElement('div');
+    sentinel.style.height = '4px';
+    newsContainer.appendChild(sentinel);
+
+    const observer = new IntersectionObserver(entries => {
+      if (!entries[0].isIntersecting) return;
+      const batch = queue.splice(0, BATCH);
+      if (!batch.length) { observer.disconnect(); sentinel.remove(); return; }
+      const grid = document.getElementById('news-grid-main');
+      if (grid) {
+        const frag = document.createDocumentFragment();
+        batch.forEach(a => {
+          const tmp = document.createElement('div');
+          tmp.innerHTML = newsCardHTML(a, false, categoryLabel, readSet);
+          const card = tmp.firstElementChild;
+          if (card) frag.appendChild(card);
+        });
+        grid.appendChild(frag);
+        attachNewsListeners(grid);
+      }
+      if (!queue.length) { observer.disconnect(); sentinel.remove(); }
+    }, { rootMargin: '200px' });
+    observer.observe(sentinel);
+  }
+}
+
+function attachSwipeToCard(card) {
+  let startX = 0, startY = 0, moved = false;
+  card.addEventListener('touchstart', e => {
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+    moved = false;
+  }, { passive: true });
+  card.addEventListener('touchmove', e => {
+    const dx = e.touches[0].clientX - startX;
+    const dy = e.touches[0].clientY - startY;
+    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 10) {
+      moved = true;
+      card.style.transform = 'translateX(' + (dx * 0.3) + 'px)';
+      card.classList.toggle('swipe-left',  dx < -20);
+      card.classList.toggle('swipe-right', dx > 20);
+    }
+  }, { passive: true });
+  card.addEventListener('touchend', e => {
+    const dx = e.changedTouches[0].clientX - startX;
+    const dy = e.changedTouches[0].clientY - startY;
+    card.style.transform = '';
+    card.classList.remove('swipe-left', 'swipe-right');
+    if (!moved || Math.abs(dy) > Math.abs(dx) || Math.abs(dx) < 60) return;
+    const url = card.dataset.url;
+    if (!url) return;
+    if (dx < 0) {
+      // 左スワイプ → 既読
+      markAsRead(url);
+      card.classList.add('is-read');
+    } else {
+      // 右スワイプ → ブックマーク
+      const articleData = {
+        url,
+        title: card.querySelector('.news-title')?.textContent || '',
+        source: card.querySelector('.news-source')?.textContent || '',
+        pubDate: '',
+        thumbnail: card.querySelector('img')?.src || ''
+      };
+      toggleBookmark(articleData);
+      card.querySelector('.news-bmark-btn')?.classList.toggle('bookmarked');
+    }
+  }, { passive: true });
 }
 
 function attachNewsListeners(container) {
@@ -1482,6 +1740,8 @@ function attachNewsListeners(container) {
       btn.classList.toggle('bookmarked', bmarked);
     });
   });
+  // スワイプ操作をすべてのニュースカードに適用
+  container.querySelectorAll('.news-card').forEach(attachSwipeToCard);
 }
 
 function renderBookmarkCards() {
@@ -1604,6 +1864,7 @@ document.getElementById('fav-btn').addEventListener('click', () => { if (current
 document.getElementById('voice-btn').addEventListener('click', speakWeather);
 
 // ===== 音量スライダー =====
+let _volSyncTimer = null;
 (function initVolumeSlider() {
   const slider = document.getElementById('volume-slider');
   const label  = document.getElementById('volume-label');
@@ -1625,6 +1886,11 @@ document.getElementById('voice-btn').addEventListener('click', speakWeather);
     localStorage.setItem(LS.volume, (v / 100).toFixed(2));
     // 再生中なら即時反映
     if (ttsAudio && !ttsAudio.paused) ttsAudio.volume = v / 100;
+    // クラウド同期（debounce 1.5s）
+    clearTimeout(_volSyncTimer);
+    _volSyncTimer = setTimeout(() => {
+      if (sbCurrentUser()) sbSaveSettings({ volume: (v / 100).toFixed(2) });
+    }, 1500);
   });
 })();
 searchBtn.addEventListener('click', () => getWeatherByCity());
@@ -1705,6 +1971,7 @@ document.getElementById('notif-btn').addEventListener('click', async () => {
       localStorage.setItem(LS.notif, '1');
       btn.classList.remove('notif-btn-off');
       btn.title = '通知ON（クリックでOFF）';
+      if (sbCurrentUser()) sbSaveSettings({ notifications_enabled: 1 });
     } else {
       showError('ブラウザの通知が許可されていません。アドレスバー左のアイコンから通知を許可してください。');
     }
@@ -1713,6 +1980,7 @@ document.getElementById('notif-btn').addEventListener('click', async () => {
     localStorage.removeItem(LS.notif);
     btn.classList.add('notif-btn-off');
     btn.title = '天気アラート通知をONにする';
+    if (sbCurrentUser()) sbSaveSettings({ notifications_enabled: 0 });
   }
 });
 // マップレイヤーボタン
@@ -1943,6 +2211,30 @@ function setAuthMsg(type, msg) {
     if (nb) { nb.classList.remove('notif-btn-off'); nb.title = '通知ON（クリックでOFF）'; }
   }
 
+  // フォントサイズ調整
+  const fontSizes = ['font-sm', 'font-md', 'font-lg'];
+  let fontSizeIdx = parseInt(localStorage.getItem(LS.fontSize) || '1');
+  function applyFontSize(idx) {
+    fontSizes.forEach(c => document.body.classList.remove(c));
+    document.body.classList.add(fontSizes[idx]);
+    const btn = document.getElementById('font-size-btn');
+    if (btn) btn.textContent = ['ａ', 'Ａ', 'Ａ'][idx] || 'Ａ';
+  }
+  applyFontSize(fontSizeIdx);
+  document.getElementById('font-size-btn')?.addEventListener('click', () => {
+    fontSizeIdx = (fontSizeIdx + 1) % 3;
+    applyFontSize(fontSizeIdx);
+    localStorage.setItem(LS.fontSize, fontSizeIdx);
+  });
+
+  // manifest の ?action=geo / ?tab=news 対応
+  const urlAction = new URL(location.href).searchParams.get('action');
+  const urlTab    = new URL(location.href).searchParams.get('tab');
+  if (urlAction === 'geo') getWeatherByGeo();
+  if (urlTab === 'news') {
+    document.querySelector('.news-tab[data-cat="general"]')?.scrollIntoView({ behavior: 'smooth' });
+  }
+
   sbOnAuthChange((event, user) => {
     updateAuthUI(user);
     // INITIAL_SESSION: ページ読み込み時の既存セッション検出
@@ -1987,6 +2279,31 @@ function setAuthMsg(type, msg) {
         if (mergedBmarks.length) {
           localStorage.setItem(LS.bookmarks, JSON.stringify(mergedBmarks));
           if (cloudBmarks.some(b => !localBUrls.has(b.url))) sbSaveSettings({ news_bookmarks: mergedBmarks });
+        }
+
+        // 検索履歴クラウド同期
+        if (Array.isArray(s.search_history) && s.search_history.length) {
+          const local = loadHistory();
+          const merged = [...s.search_history, ...local.filter(c => !s.search_history.includes(c))].slice(0, 8);
+          localStorage.setItem(LS.history, JSON.stringify(merged));
+          renderHistory();
+          if (local.some(c => !s.search_history.includes(c))) sbSaveSettings({ search_history: merged });
+        }
+
+        // 音量設定復元
+        if (s.volume != null) {
+          const pct = Math.round(parseFloat(s.volume) * 100);
+          const sl = document.getElementById('volume-slider');
+          const lb = document.getElementById('volume-label');
+          if (sl) { sl.value = pct; localStorage.setItem(LS.volume, s.volume); }
+          if (lb) lb.textContent = pct + '%';
+        }
+        // 通知設定復元（既存の notif 復元と統合）
+        if (s.notifications_enabled === 1 && Notification.permission === 'granted') {
+          notificationsEnabled = true;
+          const nb = document.getElementById('notif-btn');
+          if (nb) { nb.classList.remove('notif-btn-off'); nb.title = '通知ON（クリックでOFF）'; }
+          localStorage.setItem(LS.notif, '1');
         }
       });
       document.getElementById('auth-backdrop')?.classList.remove('show');

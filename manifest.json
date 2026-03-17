@@ -20,5 +20,26 @@
       "type": "image/svg+xml",
       "purpose": "any maskable"
     }
+  ],
+  "shortcuts": [
+    {
+      "name": "現在地の天気",
+      "short_name": "現在地",
+      "description": "現在地の天気をすぐに確認",
+      "url": "./?action=geo",
+      "icons": [{"src": "icon-192.svg", "sizes": "192x192", "type": "image/svg+xml"}]
+    },
+    {
+      "name": "東京の天気",
+      "short_name": "東京",
+      "url": "./?city=Tokyo%2CJP",
+      "icons": [{"src": "icon-192.svg", "sizes": "192x192", "type": "image/svg+xml"}]
+    },
+    {
+      "name": "ニュース",
+      "short_name": "ニュース",
+      "url": "./?tab=news",
+      "icons": [{"src": "icon-192.svg", "sizes": "192x192", "type": "image/svg+xml"}]
+    }
   ]
 }

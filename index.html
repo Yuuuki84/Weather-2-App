@@ -1435,6 +1435,48 @@
     .jma-day-weather { font-size: 10px; line-height: 1.5; color: var(--text2); margin-bottom: 4px; }
     .jma-day-pop { font-size: 12px; color: #60a5fa; font-weight: 700; }
 
+    /* ===== スケルトンスクリーン（天気カード） ===== */
+    @keyframes shimmer {
+      0%   { background-position: 200% center; }
+      100% { background-position: -200% center; }
+    }
+    #weather-result.skeleton-loading .hero-card,
+    #weather-result.skeleton-loading .detail-card,
+    #weather-result.skeleton-loading .kv-card {
+      background: linear-gradient(90deg, var(--surface) 25%, var(--surface2) 50%, var(--surface) 75%);
+      background-size: 400% 100%;
+      animation: shimmer 1.5s ease-in-out infinite;
+    }
+    #weather-result.skeleton-loading .hero-card *,
+    #weather-result.skeleton-loading .detail-card *,
+    #weather-result.skeleton-loading .kv-card * { visibility: hidden; }
+
+    /* ===== AQI カラー ===== */
+    .aqi-1 { color: #4ade80; }
+    .aqi-2 { color: #a3e635; }
+    .aqi-3 { color: #facc15; }
+    .aqi-4 { color: #fb923c; }
+    .aqi-5 { color: #f87171; }
+
+    /* ===== フォントサイズ調整 ===== */
+    body.font-sm { font-size: 13px; }
+    body.font-md { font-size: 15px; }
+    body.font-lg { font-size: 17px; }
+
+    /* ===== ニュースカードスワイプ feedback ===== */
+    .news-card {
+      touch-action: pan-y;
+      user-select: none;
+      -webkit-user-select: none;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+      will-change: transform;
+    }
+    .news-card.swipe-left  { box-shadow: inset -4px 0 0 #f87171; }
+    .news-card.swipe-right { box-shadow: inset  4px 0 0 #facc15; }
+
+    /* ===== 429 カウントダウン ===== */
+    #error-msg .countdown { font-weight: 700; font-size: 1.1em; }
+
   </style>
 </head>
 
@@ -1457,12 +1499,13 @@
         <div id="auth-area">
           <button class="btn" id="login-btn" style="font-size:13px;">ログイン</button>
         </div>
-        <button class="btn icon-btn notif-btn-off" id="notif-btn" title="天気アラート通知をONにする" style="font-size:16px;">🔔</button>
+        <button class="btn icon-btn notif-btn-off" id="notif-btn" title="天気アラート通知をONにする" aria-label="気象通知を設定" style="font-size:16px;">🔔</button>
         <select id="unit-select" title="単位">
           <option value="metric">℃ 摂氏</option>
           <option value="imperial">℉ 華氏</option>
         </select>
-        <button class="btn icon-btn" id="theme-btn" title="テーマ切替">🌙</button>
+        <button id="font-size-btn" class="icon-btn btn" title="フォントサイズ" aria-label="フォントサイズ切替">Ａ</button>
+        <button class="btn icon-btn" id="theme-btn" title="テーマ切替" aria-label="テーマを切替">🌙</button>
         <button class="btn icon-btn" id="clear-history-btn" title="履歴クリア">🧹</button>
       </div>
     </header>
@@ -1543,8 +1586,8 @@
         <input type="text" id="city-input" placeholder="都市名を入力（例：大阪、和歌山）" autocomplete="off" />
         <div class="autocomplete-box" id="ac-box"></div>
       </div>
-      <button class="btn primary" id="search-btn">検索</button>
-      <button class="btn" id="geo-btn">📍 現在地</button>
+      <button class="btn primary" id="search-btn" aria-label="天気を検索">検索</button>
+      <button class="btn" id="geo-btn" aria-label="現在地の天気を取得">📍 現在地</button>
     </div>
 
     <!-- History chips -->
@@ -1600,8 +1643,8 @@
         <div class="share-row">
           <span id="temp-min-max" style="font-size:13px;"></span>
           <div style="display:flex;gap:8px;align-items:center;">
-            <button class="btn icon-btn" id="fav-btn" title="お気に入りに追加" style="font-size:16px;">☆</button>
-            <button class="btn icon-btn" id="voice-btn" title="音声読み上げ" style="font-size:16px;">🔊</button>
+            <button class="btn icon-btn" id="fav-btn" title="お気に入りに追加" aria-label="お気に入りに追加" style="font-size:16px;">☆</button>
+            <button class="btn icon-btn" id="voice-btn" title="音声読み上げ" aria-label="天気を読み上げ" style="font-size:16px;">🔊</button>
             <div class="volume-row">
               <span class="volume-icon">🔈</span>
               <input type="range" id="volume-slider" min="0" max="100" value="80" title="音量" />
@@ -1649,6 +1692,11 @@
         <div class="kv-card">
           <div class="kv-label">📍 緯度 / 経度</div>
           <div class="kv-value" id="coordinates"></div>
+        </div>
+        <div class="kv-card" id="aqi-card" style="display:none" aria-label="大気質">
+          <div class="kv-label">🌿 大気質 (AQI)</div>
+          <div class="kv-value" id="aqi-value">—</div>
+          <div class="kv-sub" id="aqi-label">—</div>
         </div>
       </div>
 
