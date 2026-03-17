@@ -1509,6 +1509,13 @@
                 <div class="auth-feature-desc">各ユーザーのデータはRow Level Security（行レベルセキュリティ）により厳密に分離されています。他のユーザーがお客様の設定・履歴にアクセスすることは一切できません。</div>
               </div>
             </div>
+            <div class="auth-feature-item">
+              <div class="auth-feature-icon">🗄️</div>
+              <div class="auth-feature-text">
+                <div class="auth-feature-title">データ管理基盤について</div>
+                <div class="auth-feature-desc">本アプリケーションのユーザー情報・設定データ・利用ログは、<strong style="color:var(--text);">Supabase</strong>（PostgreSQLベースのクラウドデータベース）にて一元管理されております。認証済みユーザーのアカウント情報・登録日時・最終ログイン日時は Supabase の Authentication 管理画面にて確認可能であり、設定データおよび行動ログは <code style="background:rgba(99,102,241,0.15);color:var(--accent2);padding:1px 6px;border-radius:5px;font-size:10px;">user_settings</code> / <code style="background:rgba(99,102,241,0.15);color:var(--accent2);padding:1px 6px;border-radius:5px;font-size:10px;">user_logs</code> テーブルにてユーザー ID 単位で管理されています。</div>
+              </div>
+            </div>
           </div>
         </details>
       </div>
