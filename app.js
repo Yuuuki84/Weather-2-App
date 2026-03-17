@@ -1753,13 +1753,16 @@ function setAuthMsg(type, msg) {
   if (urlCity) { cityInput.value = urlCity; getWeatherByCity(urlCity); }
 
   // Supabase 認証初期化
+  // onAuthStateChange のみで管理（getSession との競合を防ぐ）
   initAuthModal();
   document.getElementById('login-btn')?.addEventListener('click', () => {
     document.getElementById('auth-backdrop')?.classList.add('show');
   });
-  sbGetSession().then(user => {
+  sbOnAuthChange((event, user) => {
     updateAuthUI(user);
-    if (user) {
+    // INITIAL_SESSION: ページ読み込み時の既存セッション検出
+    // SIGNED_IN: 新規ログイン完了
+    if ((event === 'INITIAL_SESSION' || event === 'SIGNED_IN') && user) {
       sbLoadSettings().then(settings => {
         if (!settings) return;
         if (settings.theme && (settings.theme === 'dark' || settings.theme === 'light')) applyTheme(settings.theme);
@@ -1771,14 +1774,6 @@ function setAuthMsg(type, msg) {
           fetchAndRenderNews(currentCategory);
         }
         if (settings.city) { cityInput.value = settings.city; getWeatherByCity(settings.city); }
-      });
-    }
-  });
-  sbOnAuthChange((event, user) => {
-    updateAuthUI(user);
-    if (event === 'SIGNED_IN' && user) {
-      sbLoadSettings().then(settings => {
-        if (settings?.city) { cityInput.value = settings.city; getWeatherByCity(settings.city); }
       });
       document.getElementById('auth-backdrop')?.classList.remove('show');
     }
