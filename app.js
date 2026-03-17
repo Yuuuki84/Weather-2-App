@@ -1248,54 +1248,51 @@ async function fetchGNews(category) {
 }
 
 // RSS フィード（disaster はこちらを使用）
+// rss2json.com がサーバーサイドで取得するため CORS・403 問題を回避
 const RSS_FEEDS = {
-  // Yahoo Japan 災害ニュース RSS（corsproxy.io 経由で取得）
   disaster: 'https://news.yahoo.co.jp/rss/topics/disaster.xml',
 };
-
-// CORS プロキシ（フォールバック付き）
-async function fetchWithProxy(rssUrl) {
-  // 1st: corsproxy.io
-  try {
-    const res = await fetch('https://corsproxy.io/?' + encodeURIComponent(rssUrl), { signal: timeoutSignal(12000) });
-    if (res.ok) {
-      const text = await res.text();
-      if (text && text.trim().startsWith('<')) return text;
-    }
-  } catch {}
-  // 2nd: allorigins.win (fallback)
-  const res2 = await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent(rssUrl), { signal: timeoutSignal(12000) });
-  if (!res2.ok) throw new Error('HTTP ' + res2.status);
-  const data = await res2.json();
-  if (!data.contents) throw new Error('コンテンツ取得失敗');
-  return data.contents;
-}
+// フォールバック（Yahoo が取得できない場合に使用）
+const RSS_FEEDS_FALLBACK = {
+  disaster: 'https://www3.nhk.or.jp/rss/news/cat0.xml',
+};
 
 async function fetchRSSNews(category) {
   const now = Date.now();
   if (newsCache[category] && (now - newsCache[category].ts) < CACHE_TTL) return newsCache[category].articles;
   const rssUrl = RSS_FEEDS[category];
   if (!rssUrl) throw new Error('RSS未設定');
-  const xmlText = await fetchWithProxy(rssUrl);
-  const xml = new DOMParser().parseFromString(xmlText, 'text/xml');
-  const items = Array.from(xml.querySelectorAll('item'));
-  if (!items.length) throw new Error('記事が見つかりませんでした');
-  const feedTitle = xml.querySelector('channel > title')?.textContent || 'ニュース';
-  const articles = items.slice(0, 20).map(item => {
-    let url = item.querySelector('link')?.textContent?.trim() || item.querySelector('guid')?.textContent?.trim() || '';
-    return {
-      title:       item.querySelector('title')?.textContent?.trim() || '',
-      description: item.querySelector('description')?.textContent?.replace(/<[^>]*>/g, '').trim() || '',
-      url,
-      image:       item.getElementsByTagName('media:content')[0]?.getAttribute('url') ||
-                   item.getElementsByTagName('media:thumbnail')[0]?.getAttribute('url') ||
-                   item.querySelector('enclosure')?.getAttribute('url') || '',
-      source:      feedTitle,
-      sourceIcon:  '',
-      publishedAt: item.querySelector('pubDate')?.textContent || '',
-      lang:        'ja',
-    };
-  });
+
+  // rss2json.com API: サーバーサイドで RSS を取得→ JSON 変換（CORS フリー）
+  async function tryRss2json(url) {
+    const apiUrl = 'https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent(url);
+    const res = await fetch(apiUrl, { signal: timeoutSignal(14000) });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    if (data.status !== 'ok' || !data.items?.length) throw new Error('記事なし');
+    return data;
+  }
+
+  let data;
+  try {
+    data = await tryRss2json(rssUrl);
+  } catch {
+    const fallback = RSS_FEEDS_FALLBACK[category];
+    if (!fallback) throw new Error('記事が見つかりませんでした');
+    data = await tryRss2json(fallback);
+  }
+
+  const feedTitle = data.feed?.title || 'ニュース';
+  const articles = data.items.slice(0, 20).map(item => ({
+    title:       item.title || '',
+    description: (item.description || '').replace(/<[^>]*>/g, '').trim(),
+    url:         item.link || '',
+    image:       item.thumbnail || item.enclosure?.link || '',
+    source:      feedTitle,
+    sourceIcon:  data.feed?.favicon || '',
+    publishedAt: item.pubDate || '',
+    lang:        'ja',
+  }));
   newsCache[category] = { ts: now, articles };
   return articles;
 }
