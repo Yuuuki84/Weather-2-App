@@ -1163,9 +1163,72 @@ function fetchPoodleCard(wxClass) {
     '</div>';
 }
 
-// 日本語文字を含む都市名には ",JP" を付加して日本に絞り込む
+// 日本語都市名 → ローマ字変換テーブル（OWM は漢字クエリが不安定なため）
+const JP_CITY_ROMAJI = {
+  // 北海道・東北
+  '札幌':'Sapporo','函館':'Hakodate','旭川':'Asahikawa','釧路':'Kushiro','帯広':'Obihiro',
+  '青森':'Aomori','弘前':'Hirosaki','八戸':'Hachinohe',
+  '盛岡':'Morioka','一関':'Ichinoseki',
+  '仙台':'Sendai','石巻':'Ishinomaki',
+  '秋田':'Akita','大館':'Odate',
+  '山形':'Yamagata','鶴岡':'Tsuruoka','米沢':'Yonezawa',
+  '福島':'Fukushima-shi','郡山':'Koriyama','いわき':'Iwaki',
+  // 関東
+  '水戸':'Mito','つくば':'Tsukuba','日立':'Hitachi',
+  '宇都宮':'Utsunomiya','栃木':'Tochigi','小山':'Oyama',
+  '前橋':'Maebashi','高崎':'Takasaki','太田':'Ota',
+  'さいたま':'Saitama','川越':'Kawagoe','越谷':'Koshigaya','熊谷':'Kumagaya',
+  '千葉':'Chiba','船橋':'Funabashi','松戸':'Matsudo','市川':'Ichikawa','柏':'Kashiwa',
+  '東京':'Tokyo','新宿':'Shinjuku','渋谷':'Shibuya','池袋':'Ikebukuro',
+  '横浜':'Yokohama','川崎':'Kawasaki','相模原':'Sagamihara','藤沢':'Fujisawa','横須賀':'Yokosuka',
+  // 中部
+  '新潟':'Niigata','長岡':'Nagaoka','上越':'Joetsu',
+  '富山':'Toyama','高岡':'Takaoka',
+  '金沢':'Kanazawa','小松':'Komatsu',
+  '福井':'Fukui','敦賀':'Tsuruga',
+  '甲府':'Kofu','富士吉田':'Fujiyoshida',
+  '長野':'Nagano','松本':'Matsumoto','上田':'Ueda',
+  '岐阜':'Gifu','大垣':'Ogaki','高山':'Takayama',
+  '静岡':'Shizuoka','浜松':'Hamamatsu','沼津':'Numazu','富士':'Fuji',
+  '名古屋':'Nagoya','豊橋':'Toyohashi','岡崎':'Okazaki','豊田':'Toyota',
+  // 近畿
+  '津':'Tsu','四日市':'Yokkaichi','松阪':'Matsusaka',
+  '大津':'Otsu','草津':'Kusatsu','彦根':'Hikone',
+  '京都':'Kyoto','宇治':'Uji','舞鶴':'Maizuru',
+  '大阪':'Osaka','堺':'Sakai','東大阪':'Higashiosaka','枚方':'Hirakata',
+  '神戸':'Kobe','姫路':'Himeji','西宮':'Nishinomiya','尼崎':'Amagasaki','明石':'Akashi',
+  '奈良':'Nara','橿原':'Kashihara',
+  '和歌山':'Wakayama',
+  // 中国・四国
+  '鳥取':'Tottori','米子':'Yonago',
+  '松江':'Matsue','出雲':'Izumo',
+  '岡山':'Okayama','倉敷':'Kurashiki',
+  '広島':'Hiroshima','福山':'Fukuyama','呉':'Kure',
+  '山口':'Yamaguchi','下関':'Shimonoseki','宇部':'Ube',
+  '徳島':'Tokushima',
+  '高松':'Takamatsu','丸亀':'Marugame',
+  '松山':'Matsuyama','今治':'Imabari',
+  '高知':'Kochi',
+  // 九州・沖縄
+  '福岡':'Fukuoka','北九州':'Kitakyushu','久留米':'Kurume',
+  '佐賀':'Saga','唐津':'Karatsu',
+  '長崎':'Nagasaki','佐世保':'Sasebo',
+  '熊本':'Kumamoto','八代':'Yatsushiro',
+  '大分':'Oita','別府':'Beppu',
+  '宮崎':'Miyazaki','都城':'Miyakonojo',
+  '鹿児島':'Kagoshima','霧島':'Kirishima',
+  '那覇':'Naha','沖縄市':'Okinawa City',
+};
+
+// 日本語都市名を OWM Geocoding 用クエリに変換
+// - テーブル登録済み → ローマ字 + ",JP"
+// - 未登録の日本語 → 漢字 + ",JP"（フォールバック）
+// - 英語/カンマ含む → そのまま
 function buildGeoQuery(city) {
-  if (!city.includes(',') && /[\u3000-\u9fff\uff00-\uffef]/.test(city)) return city + ',JP';
+  if (city.includes(',')) return city;
+  if (/[\u3000-\u9fff\uff00-\uffef\u3040-\u30ff]/.test(city)) {
+    return (JP_CITY_ROMAJI[city] || city) + ',JP';
+  }
   return city;
 }
 
