@@ -1702,6 +1702,7 @@ async function fetchAndRenderNews(category) {
   const cached = newsCache[category];
   if (cached && (Date.now() - cached.ts) < CACHE_TTL) {
     renderNewsCards(cached.articles, label);
+    updateNewsBadges();
     return;
   }
   renderNewsSkeleton();
@@ -1710,7 +1711,7 @@ async function fetchAndRenderNews(category) {
     const articles = category === 'disaster'
       ? await fetchRSSNews(category)
       : await fetchGNews(category);
-    if (articles.length > 0) { renderNewsCards(articles, label); return; }
+    if (articles.length > 0) { renderNewsCards(articles, label); updateNewsBadges(); return; }
     showNewsMessage('📭', '「' + label + '」の記事が見つかりませんでした', 'しばらく後にお試しください。');
   } catch(e) {
     // オフラインキャッシュを確認
@@ -1980,10 +1981,18 @@ function cleanSummaryText(text) {
     .trim();
 }
 
+const SUMMARY_TTL = 7 * 24 * 60 * 60 * 1000; // 7日
+
 async function summarizeArticle(url, title, description) {
   const cacheKey = 'sora_summary_' + url;
-  const cached = sessionStorage.getItem(cacheKey);
-  if (cached) return cached;
+  try {
+    const raw = localStorage.getItem(cacheKey);
+    if (raw) {
+      const { text: t, ts } = JSON.parse(raw);
+      if (Date.now() - ts < SUMMARY_TTL) return t;
+      localStorage.removeItem(cacheKey);
+    }
+  } catch {}
   if (!CHAT_API_URL || CHAT_API_URL === 'YOUR_CHAT_WORKER_URL') return '⚠️ Worker URLが未設定です。';
   const controller = new AbortController();
   const tid = setTimeout(() => controller.abort(), 30000);
@@ -2000,12 +2009,24 @@ async function summarizeArticle(url, title, description) {
     if (data.error) return `⚠️ ${data.error}`;
     const text = cleanSummaryText(data.summary || '');
     if (!text) return '⚠️ 要約を取得できませんでした。';
-    sessionStorage.setItem(cacheKey, text);
+    try { localStorage.setItem(cacheKey, JSON.stringify({ text, ts: Date.now() })); } catch {}
     return text;
   } catch (e) {
     clearTimeout(tid);
     if (e.name === 'AbortError') return '⚠️ タイムアウトしました。';
     return '⚠️ 要約の取得中にエラーが発生しました。';
+  }
+}
+
+function cleanSummaryCache() {
+  const now = Date.now();
+  for (let i = localStorage.length - 1; i >= 0; i--) {
+    const key = localStorage.key(i);
+    if (!key || !key.startsWith('sora_summary_')) continue;
+    try {
+      const { ts } = JSON.parse(localStorage.getItem(key));
+      if (now - ts >= SUMMARY_TTL) localStorage.removeItem(key);
+    } catch { localStorage.removeItem(key); }
   }
 }
 
@@ -2042,6 +2063,7 @@ function markAsRead(url) {
   set.add(url);
   const arr = [...set].slice(-300);
   try { localStorage.setItem(LS.newsRead, JSON.stringify(arr)); } catch {}
+  updateNewsBadges();
   // クラウドへの書き込みはデバウンスして過剰なAPIコールを防ぐ
   clearTimeout(_syncReadTimer);
   _syncReadTimer = setTimeout(() => sbSaveSettings({ news_read: arr.slice(-100) }), 3000);
@@ -2049,6 +2071,7 @@ function markAsRead(url) {
 function clearReadUrls() {
   try { localStorage.removeItem(LS.newsRead); } catch {}
   sbSaveSettings({ news_read: [] });
+  updateNewsBadges();
 }
 
 let newsShowUnreadOnly = false;
@@ -2381,8 +2404,126 @@ function setAuthMsg(type, msg) {
   el.textContent = msg;
 }
 
+// ===== プルトゥリフレッシュ =====
+(function initPullToRefresh() {
+  const indicator = document.getElementById('ptr-indicator');
+  const ptrIcon   = document.getElementById('ptr-icon');
+  const ptrLabel  = document.getElementById('ptr-label');
+  if (!indicator) return;
+
+  let startY = 0;
+  let pulling = false;
+  const THRESHOLD = 80;
+
+  document.addEventListener('touchstart', e => {
+    if (window.scrollY === 0) { startY = e.touches[0].clientY; pulling = true; }
+  }, { passive: true });
+
+  document.addEventListener('touchmove', e => {
+    if (!pulling) return;
+    const dy = e.touches[0].clientY - startY;
+    if (dy > 10) {
+      indicator.classList.add('ptr-pulling');
+      ptrIcon.textContent  = dy >= THRESHOLD ? '↺' : '↓';
+      ptrLabel.textContent = dy >= THRESHOLD ? '放して更新' : '引いて更新';
+    }
+  }, { passive: true });
+
+  document.addEventListener('touchend', e => {
+    if (!pulling) return;
+    const dy = e.changedTouches[0].clientY - startY;
+    pulling = false;
+    if (dy >= THRESHOLD) {
+      ptrIcon.textContent  = '';
+      ptrLabel.textContent = '更新中...';
+      indicator.classList.remove('ptr-pulling');
+      indicator.classList.add('ptr-refreshing');
+      indicator.querySelector('.ptr-spinner')?.remove();
+      const spinner = document.createElement('span');
+      spinner.className = 'ptr-spinner';
+      indicator.insertBefore(spinner, ptrIcon);
+      const done = () => {
+        indicator.classList.remove('ptr-refreshing');
+        spinner.remove();
+        ptrIcon.textContent  = '↓';
+        ptrLabel.textContent = '引いて更新';
+      };
+      const tasks = [fetchAndRenderNews(currentCategory)];
+      if (lastCoords) tasks.push(getWeatherByGeo());
+      else if (currentCity) tasks.push(getWeatherByCity(currentCity));
+      Promise.allSettled(tasks).then(done);
+    } else {
+      indicator.classList.remove('ptr-pulling');
+      ptrIcon.textContent  = '↓';
+      ptrLabel.textContent = '引いて更新';
+    }
+  }, { passive: true });
+})();
+
+// ===== ニュース未読バッジ =====
+function updateNewsBadges() {
+  const readSet = loadReadUrls();
+  newsTabs.querySelectorAll('.news-tab').forEach(tab => {
+    const cat = tab.dataset.cat;
+    const cached = newsCache[cat];
+    let existing = tab.querySelector('.tab-badge');
+    if (!cached?.articles?.length) { existing?.remove(); return; }
+    const count = cached.articles.filter(a => a.url && !readSet.has(a.url)).length;
+    if (count <= 0) { existing?.remove(); return; }
+    if (!existing) { existing = document.createElement('span'); existing.className = 'tab-badge'; tab.appendChild(existing); }
+    existing.textContent = count > 99 ? '99+' : String(count);
+  });
+}
+
+// ===== プライバシーポリシー =====
+(function initPrivacyModal() {
+  const modal = document.getElementById('privacy-modal');
+  const closeBtn = document.getElementById('privacy-modal-close');
+  const link = document.getElementById('privacy-link');
+  if (!modal) return;
+  link?.addEventListener('click', () => modal.classList.add('show'));
+  closeBtn?.addEventListener('click', () => modal.classList.remove('show'));
+  modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('show'); });
+})();
+
+// ===== オンボーディング =====
+function initOnboarding() {
+  const ONBOARDING_KEY = 'sora_onboarding_v1';
+  if (localStorage.getItem(ONBOARDING_KEY)) return;
+  const modal   = document.getElementById('onboarding-modal');
+  const nextBtn = document.getElementById('ob-next');
+  const prevBtn = document.getElementById('ob-prev');
+  const dots    = modal?.querySelectorAll('.ob-dot');
+  const steps   = modal?.querySelectorAll('.ob-step');
+  if (!modal || !steps?.length) return;
+  let current = 0;
+  const total = steps.length;
+
+  const show = idx => {
+    steps.forEach((s, i) => s.classList.toggle('active', i === idx));
+    dots.forEach((d, i) => d.classList.toggle('active', i === idx));
+    prevBtn.style.display = idx === 0 ? 'none' : '';
+    nextBtn.textContent = idx === total - 1 ? 'はじめる ✓' : '次へ →';
+    current = idx;
+  };
+
+  nextBtn?.addEventListener('click', () => {
+    if (current < total - 1) { show(current + 1); }
+    else {
+      modal.classList.remove('show');
+      localStorage.setItem(ONBOARDING_KEY, '1');
+    }
+  });
+  prevBtn?.addEventListener('click', () => { if (current > 0) show(current - 1); });
+
+  show(0);
+  modal.classList.add('show');
+}
+
 // ===== 初期化 =====
 (function init() {
+  cleanSummaryCache();
+  initOnboarding();
   const savedTheme = localStorage.getItem(LS.theme);
   if (savedTheme === 'dark' || savedTheme === 'light') applyTheme(savedTheme);
   else applyTheme(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
