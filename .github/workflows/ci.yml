@@ -1,0 +1,48 @@
+name: CI（develop / feature ブランチ検証）
+
+on:
+  push:
+    branches:
+      - develop
+      - 'feature/**'
+  pull_request:
+    branches:
+      - develop
+      - main
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 必須ファイルの存在確認
+        run: |
+          for f in index.html app.js sw.js manifest.json supabase.js; do
+            if [ ! -f "$f" ]; then
+              echo "❌ 必須ファイルが見つかりません: $f"
+              exit 1
+            fi
+            echo "✓ $f"
+          done
+
+      - name: manifest.json の JSON 形式チェック
+        run: |
+          python3 -c "import json, sys; json.load(open('manifest.json'))" \
+            && echo "✓ manifest.json は有効な JSON です" \
+            || (echo "❌ manifest.json の JSON が不正です" && exit 1)
+
+      - name: Service Worker キャッシュ名の確認
+        run: |
+          grep -q "CACHE_NAME" sw.js \
+            && echo "✓ sw.js に CACHE_NAME が定義されています" \
+            || (echo "❌ sw.js に CACHE_NAME が見つかりません" && exit 1)
+
+      - name: config.js が gitignore されているか確認
+        run: |
+          if git ls-files --error-unmatch config.js 2>/dev/null; then
+            echo "❌ config.js がリポジトリに含まれています（APIキー漏洩の危険）"
+            exit 1
+          else
+            echo "✓ config.js は .gitignore されています"
+          fi

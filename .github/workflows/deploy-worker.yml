@@ -1,0 +1,20 @@
+name: Cloudflare Worker デプロイ
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'chat-worker/**'
+  workflow_dispatch:  # GitHub Actions 画面から手動実行可能
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cloudflare Worker をデプロイ
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          workingDirectory: chat-worker
