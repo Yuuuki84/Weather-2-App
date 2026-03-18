@@ -1698,7 +1698,7 @@ async function tryRss2json(url) {
     description: (item.description || '').replace(/<[^>]*>/g, '').trim(),
     url:         item.link || '',
     image:       item.thumbnail || item.enclosure?.link || '',
-    source:      item.author || data.feed?.title || '',
+    source:      item.author || '',
     sourceIcon:  data.feed?.favicon || '',
     publishedAt: item.pubDate || '',
     lang:        'ja',
@@ -1971,7 +1971,7 @@ function newsCardHTML(a, featured, categoryLabel, readSet) {
       '<div class="news-category">' + escHtml(categoryLabel || a.category || '') + '</div>' +
       '<div class="news-title">' + escHtml(a.title) + '</div>' +
       '<div class="news-meta">' +
-        '<span class="news-source">📡 ' + escHtml(a.source) + '</span>' +
+        (a.source ? '<span class="news-source">📡 ' + escHtml(a.source) + '</span>' : '') +
         '<span style="display:flex;gap:6px;align-items:center;">' +
           (timeStr ? '<span class="news-time">' + timeStr + '</span>' : '') +
           readBadge +
