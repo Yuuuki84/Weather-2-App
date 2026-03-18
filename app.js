@@ -98,8 +98,15 @@ function showError429(seconds) {
   clearError();
   errorBar.classList.add('show');
   let remaining = seconds;
+  // DOM を直接操作し innerHTML を使わない
+  errorText.textContent = '';
+  const countdownEl = document.createElement('span');
+  countdownEl.className = 'countdown';
+  errorText.appendChild(document.createTextNode('APIリクエスト制限中です。'));
+  errorText.appendChild(countdownEl);
+  errorText.appendChild(document.createTextNode('秒後に再試行できます。'));
   const update = () => {
-    errorText.innerHTML = 'APIリクエスト制限中です。<span class="countdown">' + remaining + '秒</span>後に再試行できます。';
+    countdownEl.textContent = String(remaining);
     if (remaining-- <= 0) {
       clearInterval(_countdownTimer);
       _countdownTimer = null;
@@ -1128,7 +1135,7 @@ let chatWeatherCtx = null;
 let chatListenersAttached = false;
 
 function saveChatHistory() {
-  try { localStorage.setItem(LS.chat, JSON.stringify(chatHistory.slice(-20))); } catch {}
+  try { localStorage.setItem(LS.chat, JSON.stringify(chatHistory.slice(-20))); } catch (e) { console.warn('localStorage 書き込み失敗 (chat):', e); }
 }
 function loadChatHistory() {
   try { const s = JSON.parse(localStorage.getItem(LS.chat) || '[]'); return Array.isArray(s) ? s : []; }
@@ -1645,7 +1652,7 @@ async function fetchGNews(category) {
   }));
 
   newsCache[category] = { ts: now, articles };
-  try { localStorage.setItem('sora_news_offline_' + category, JSON.stringify({ ts: now, articles })); } catch {}
+  try { localStorage.setItem('sora_news_offline_' + category, JSON.stringify({ ts: now, articles })); } catch (e) { console.warn('localStorage 書き込み失敗 (news offline):', e); }
   return articles;
 }
 
@@ -1733,7 +1740,7 @@ async function fetchAndRenderNews(category) {
 
     if (articles.length > 0) {
       newsCache[category] = { ts: Date.now(), articles };
-      try { localStorage.setItem('sora_news_offline_' + category, JSON.stringify({ ts: Date.now(), articles })); } catch {}
+      try { localStorage.setItem('sora_news_offline_' + category, JSON.stringify({ ts: Date.now(), articles })); } catch (e) { console.warn('localStorage 書き込み失敗 (news offline):', e); }
       renderNewsCards(articles, label); updateNewsBadges(); return;
     }
     showNewsMessage('📭', '「' + label + '」の記事が見つかりませんでした', 'しばらく後にお試しください。');
@@ -2033,7 +2040,7 @@ async function summarizeArticle(url, title, description) {
     if (data.error) return `⚠️ ${data.error}`;
     const text = cleanSummaryText(data.summary || '');
     if (!text) return '⚠️ 要約を取得できませんでした。';
-    try { localStorage.setItem(cacheKey, JSON.stringify({ text, ts: Date.now() })); } catch {}
+    try { localStorage.setItem(cacheKey, JSON.stringify({ text, ts: Date.now() })); } catch (e) { console.warn('localStorage 書き込み失敗 (summary):', e); }
     return text;
   } catch (e) {
     clearTimeout(tid);

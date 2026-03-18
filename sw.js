@@ -59,7 +59,7 @@ self.addEventListener('fetch', event => {
                            url.hostname.includes('news.yahoo.co.jp') ||
                            url.hostname.includes('news.google.com');
             const ttl = isNews ? TTL_NEWS : TTL_WEATHER;
-            if (age < ttl) {
+            if (!isNaN(age) && age < ttl) {
               return cached; // TTL 内 → キャッシュを返す
             }
           }
