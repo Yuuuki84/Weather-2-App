@@ -1653,9 +1653,19 @@ async function fetchGNews(category) {
   return articles;
 }
 
-// Google News RSS（全カテゴリ対応・無料・無制限）
-// rss2json.com がサーバーサイドで取得するため CORS 問題を回避
+// 1次: Yahoo Japan RSS（30〜60分更新・無料・APIキー不要）
 const RSS_FEEDS = {
+  general:       'https://news.yahoo.co.jp/rss/topics/top-picks.xml',
+  technology:    'https://news.yahoo.co.jp/rss/topics/it.xml',
+  science:       'https://news.yahoo.co.jp/rss/topics/science.xml',
+  sports:        'https://news.yahoo.co.jp/rss/topics/sports.xml',
+  entertainment: 'https://news.yahoo.co.jp/rss/topics/entertainment.xml',
+  health:        'https://news.yahoo.co.jp/rss/topics/health.xml',
+  business:      'https://news.yahoo.co.jp/rss/topics/business.xml',
+  disaster:      'https://news.yahoo.co.jp/rss/topics/disaster.xml',
+};
+// 2次フォールバック: Google News RSS（1〜4時間更新）
+const RSS_FEEDS_FALLBACK = {
   general:       'https://news.google.com/rss?hl=ja&gl=JP&ceid=JP:ja',
   technology:    'https://news.google.com/rss/headlines/section/topic/TECHNOLOGY?hl=ja&gl=JP&ceid=JP:ja',
   science:       'https://news.google.com/rss/headlines/section/topic/SCIENCE?hl=ja&gl=JP&ceid=JP:ja',
@@ -1664,11 +1674,6 @@ const RSS_FEEDS = {
   health:        'https://news.google.com/rss/headlines/section/topic/HEALTH?hl=ja&gl=JP&ceid=JP:ja',
   business:      'https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=ja&gl=JP&ceid=JP:ja',
   disaster:      'https://news.google.com/rss/search?q=%E7%81%BD%E5%AE%B3+OR+%E5%9C%B0%E9%9C%87+OR+%E5%8F%B0%E9%A2%A8+OR+%E6%B4%AA%E6%B0%B4&hl=ja&gl=JP&ceid=JP%3Aja',
-};
-// フォールバック（Google News が取得できない場合に使用）
-const RSS_FEEDS_FALLBACK = {
-  general:       'https://news.yahoo.co.jp/rss/topics/top-picks.xml',
-  disaster:      'https://news.yahoo.co.jp/rss/topics/disaster.xml',
 };
 
 async function fetchRSSNews(category) {
@@ -1701,7 +1706,7 @@ async function fetchRSSNews(category) {
     description: (item.description || '').replace(/<[^>]*>/g, '').trim(),
     url:         item.link || '',
     image:       item.thumbnail || item.enclosure?.link || '',
-    source:      item.author || 'Google ニュース',
+    source:      item.author || item.source?.name || 'Yahoo ニュース',
     sourceIcon:  data.feed?.favicon || '',
     publishedAt: item.pubDate || '',
     lang:        'ja',
@@ -1721,9 +1726,36 @@ async function fetchAndRenderNews(category) {
   }
   renderNewsSkeleton();
   try {
-    // 全カテゴリ Google News RSS（GNews API から移行）
-    const articles = await fetchRSSNews(category);
-    if (articles.length > 0) { renderNewsCards(articles, label); updateNewsBadges(); return; }
+    // フェッチチェーン: 1次 Currents API → 2次 Yahoo RSS → 3次 Google RSS
+    let articles = [];
+    try {
+      // 1次: Currents API（リアルタイム・chat-worker経由）
+      if (CHAT_API_URL && CHAT_API_URL !== 'YOUR_CHAT_WORKER_URL') {
+        const res = await fetch(CHAT_API_URL + '/api/news?category=' + category, { signal: timeoutSignal(15000) });
+        if (res.ok) {
+          const data = await res.json();
+          if (!data.error && Array.isArray(data.articles) && data.articles.length > 0) {
+            articles = data.articles.map(item => ({
+              title:       item.title?.trim() || '',
+              description: item.description?.trim() || '',
+              url:         item.url || '',
+              image:       item.image || '',
+              source:      item.source?.name || 'Currents',
+              sourceIcon:  '',
+              publishedAt: item.publishedAt || '',
+              lang:        'ja',
+            }));
+          }
+        }
+      }
+    } catch {}
+    // 2次以降: Yahoo RSS → Google RSS（fetchRSSNews内でフォールバック）
+    if (articles.length === 0) articles = await fetchRSSNews(category);
+    if (articles.length > 0) {
+      newsCache[category] = { ts: Date.now(), articles };
+      try { localStorage.setItem('sora_news_offline_' + category, JSON.stringify({ ts: Date.now(), articles })); } catch {}
+      renderNewsCards(articles, label); updateNewsBadges(); return;
+    }
     showNewsMessage('📭', '「' + label + '」の記事が見つかりませんでした', 'しばらく後にお試しください。');
   } catch(e) {
     // オフラインキャッシュを確認

@@ -1,6 +1,6 @@
 // ===== Luna & Elma Worker =====
 // Cloudflare Workers バックエンド
-// Secrets: GNEWS_API_KEY
+// Secrets: CURRENTS_API_KEY
 // AI バインディング (wrangler.toml [ai]): AI
 // 環境変数 (wrangler.toml vars): ALLOWED_ORIGIN
 
@@ -20,9 +20,10 @@ const SUMMARIZE_PROMPT =
   '英単語・記号（*、-、#、>、「」以外の括弧など）・箇条書き・見出しは一切使わないでください。' +
   '2〜3文の自然な会話文のみで要約してください。改行も使わないでください。';
 
-const GNEWS_CATEGORY = {
-  general: 'general', technology: 'technology', science: 'science',
+const CURRENTS_CATEGORY = {
+  general: 'world', technology: 'technology', science: 'science',
   sports: 'sports', entertainment: 'entertainment', health: 'health', business: 'business',
+  disaster: 'world',
 };
 
 export default {
@@ -80,7 +81,7 @@ export default {
 async function handleNews(url, origin, env, ctx) {
   const category = url.searchParams.get('category') || 'general';
   const cache = caches.default;
-  const cacheKey = new Request(`https://luna-elma-cache.internal/news/${category}`);
+  const cacheKey = new Request(`https://luna-elma-cache.internal/news/v2/${category}`);
 
   // キャッシュヒット確認
   const cached = await cache.match(cacheKey);
@@ -89,8 +90,8 @@ async function handleNews(url, origin, env, ctx) {
     return jsonRes(data, 200, origin);
   }
 
-  // GNews から取得
-  const data = await fetchGNews(category, env.GNEWS_API_KEY);
+  // Currents API から取得
+  const data = await fetchCurrents(category, env.CURRENTS_API_KEY);
   if (data.error) return jsonRes(data, 502, origin);
 
   // キャッシュ保存（5分）
@@ -102,23 +103,33 @@ async function handleNews(url, origin, env, ctx) {
   return jsonRes(data, 200, origin);
 }
 
-async function fetchGNews(category, apiKey) {
-  if (!apiKey) return { error: 'GNEWS_API_KEY が未設定です' };
+async function fetchCurrents(category, apiKey) {
+  if (!apiKey) return { error: 'CURRENTS_API_KEY が未設定です' };
+  const cat = CURRENTS_CATEGORY[category] || 'world';
   let apiUrl;
-  if (category === 'pet') {
-    const q = encodeURIComponent('ペット 犬 猫');
-    apiUrl = `https://gnews.io/api/v4/search?q=${q}&lang=ja&max=10&token=${apiKey}`;
+  if (category === 'disaster') {
+    apiUrl = `https://api.currentsapi.services/v1/search?keywords=%E7%81%BD%E5%AE%B3%20OR%20%E5%9C%B0%E9%9C%87%20OR%20%E5%8F%B0%E9%A2%A8&language=ja&apiKey=${apiKey}`;
   } else {
-    const cat = GNEWS_CATEGORY[category] || 'general';
-    apiUrl = `https://gnews.io/api/v4/top-headlines?category=${cat}&lang=ja&country=jp&max=10&token=${apiKey}`;
+    apiUrl = `https://api.currentsapi.services/v1/latest-news?category=${cat}&language=ja&apiKey=${apiKey}`;
   }
   try {
     const res = await fetch(apiUrl);
     if (!res.ok) {
       const body = await res.text().catch(() => '');
-      return { error: `GNews HTTP ${res.status}: ${body.slice(0, 80)}` };
+      return { error: `Currents HTTP ${res.status}: ${body.slice(0, 80)}` };
     }
-    return await res.json();
+    const json = await res.json();
+    if (!json.news?.length) return { error: '記事なし' };
+    // GNews 互換フォーマットに変換
+    const articles = json.news.slice(0, 20).map(item => ({
+      title:       item.title || '',
+      description: item.description || '',
+      url:         item.url || '',
+      image:       item.image || '',
+      publishedAt: item.published || '',
+      source:      { name: item.author || 'Currents' },
+    }));
+    return { articles };
   } catch (e) {
     return { error: e.message || 'fetch失敗' };
   }
