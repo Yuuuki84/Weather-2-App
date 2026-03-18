@@ -174,9 +174,9 @@
     .settings-menu-wrap { position: relative; }
     .settings-dropdown {
       display: none;
-      position: absolute;
-      top: calc(100% + 8px);
-      right: 0;
+      position: fixed;
+      top: 70px;
+      right: 12px;
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: 14px;
@@ -184,32 +184,36 @@
       backdrop-filter: blur(20px);
       -webkit-backdrop-filter: blur(20px);
       padding: 8px;
-      min-width: 180px;
-      z-index: 200;
+      min-width: 200px;
+      z-index: 9999;
     }
     .settings-dropdown.open { display: block; }
     .settings-dropdown-row {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 8px 10px;
+      padding: 10px 12px;
       gap: 12px;
     }
-    .settings-dropdown-label { font-size: 13px; color: var(--text2); white-space: nowrap; }
-    .settings-dropdown select { font-size: 13px; background: var(--surface2); color: var(--text); border: 1px solid var(--border2); border-radius: 8px; padding: 6px 8px; }
+    .settings-dropdown-label { font-size: 14px; color: var(--text2); white-space: nowrap; }
+    .settings-dropdown select { font-size: 14px; background: var(--surface2); color: var(--text); border: 1px solid var(--border2); border-radius: 8px; padding: 8px 10px; }
+    .settings-dropdown .btn.icon-btn { min-width: 44px; min-height: 44px; padding: 10px; font-size: 16px; }
 
     /* デスクトップ：mobile専用を隠す */
     .header-mobile-only { display: none; }
     @media (max-width: 540px) {
       .header-desktop-only { display: none !important; }
       .header-mobile-only { display: block; }
-      .logo { font-size: 20px; }
-      .logo span { display: none; }
-      .header-actions { gap: 6px; }
+      /* ヘッダーを2行構成に：1行目ロゴ / 2行目ボタン */
+      .header { flex-wrap: wrap; margin-bottom: 20px; }
+      .header > div:first-child { width: 100%; }
+      .header-actions { width: 100%; justify-content: flex-end; gap: 8px; }
+      /* タップ領域を44px確保（Apple HIG準拠） */
+      .header-actions .btn { min-width: 44px; min-height: 44px; display: flex; align-items: center; justify-content: center; }
       /* ログイン時のユーザー名を非表示にしてアバターのみ表示 */
       .user-email { display: none; }
-      .user-badge { padding: 4px; border-radius: 50%; }
-      #login-btn { font-size: 11px !important; padding: 6px 8px; }
+      .user-badge { padding: 4px; border-radius: 50%; min-width: 44px; min-height: 44px; justify-content: center; }
+      #login-btn { font-size: 12px !important; padding: 0 12px; }
     }
 
     /* ===== GLASS CARD ===== */

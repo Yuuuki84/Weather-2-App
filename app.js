@@ -2606,6 +2606,8 @@ function initOnboarding() {
       fontSizeIdx = (fontSizeIdx + 1) % 3;
       applyFontSize(fontSizeIdx);
       localStorage.setItem(LS.fontSize, fontSizeIdx);
+      // zoom変更でドロップダウンがずれるため閉じる
+      document.getElementById('settings-dropdown')?.classList.remove('open');
     });
   });
 
