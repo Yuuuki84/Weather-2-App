@@ -1345,6 +1345,14 @@ const JP_CITY_ROMAJI = {
   '大津':'Otsu','草津':'Kusatsu','彦根':'Hikone',
   '京都':'Kyoto','宇治':'Uji','舞鶴':'Maizuru',
   '大阪':'Osaka','堺':'Sakai','東大阪':'Higashiosaka','枚方':'Hirakata',
+  // 大阪市内（区名・繁華街）→ Osaka にマッピング
+  '梅田':'Osaka','なんば':'Osaka','難波':'Osaka','心斎橋':'Osaka','天王寺':'Osaka',
+  '難波':'Osaka','新世界':'Osaka','上本町':'Osaka','本町':'Osaka','肥後橋':'Osaka',
+  '住之江区':'Osaka','阿倍野区':'Osaka','西成区':'Osaka','生野区':'Osaka',
+  '東住吉区':'Osaka','平野区':'Osaka','住吉区':'Osaka','東淀川区':'Osaka',
+  '淀川区':'Osaka','西淀川区':'Osaka','此花区':'Osaka','港区':'Osaka',
+  '大正区':'Osaka','浪速区':'Osaka','西区':'Osaka','福島区':'Osaka',
+  '都島区':'Osaka','旭区':'Osaka','城東区':'Osaka','鶴見区':'Osaka',
   '神戸':'Kobe','姫路':'Himeji','西宮':'Nishinomiya','尼崎':'Amagasaki','明石':'Akashi',
   '奈良':'Nara','橿原':'Kashihara',
   '和歌山':'Wakayama',
@@ -1645,15 +1653,22 @@ async function fetchGNews(category) {
   return articles;
 }
 
-// RSS フィード（disaster はこちらを使用）
-// rss2json.com がサーバーサイドで取得するため CORS・403 問題を回避
+// Google News RSS（全カテゴリ対応・無料・無制限）
+// rss2json.com がサーバーサイドで取得するため CORS 問題を回避
 const RSS_FEEDS = {
-  // Google News RSS: 災害キーワード検索（複数メディアを横断・無料）
-  disaster: 'https://news.google.com/rss/search?q=%E7%81%BD%E5%AE%B3+OR+%E5%9C%B0%E9%9C%87+OR+%E5%8F%B0%E9%A2%A8+OR+%E6%B4%AA%E6%B0%B4&hl=ja&gl=JP&ceid=JP%3Aja',
+  general:       'https://news.google.com/rss?hl=ja&gl=JP&ceid=JP:ja',
+  technology:    'https://news.google.com/rss/headlines/section/topic/TECHNOLOGY?hl=ja&gl=JP&ceid=JP:ja',
+  science:       'https://news.google.com/rss/headlines/section/topic/SCIENCE?hl=ja&gl=JP&ceid=JP:ja',
+  sports:        'https://news.google.com/rss/headlines/section/topic/SPORTS?hl=ja&gl=JP&ceid=JP:ja',
+  entertainment: 'https://news.google.com/rss/headlines/section/topic/ENTERTAINMENT?hl=ja&gl=JP&ceid=JP:ja',
+  health:        'https://news.google.com/rss/headlines/section/topic/HEALTH?hl=ja&gl=JP&ceid=JP:ja',
+  business:      'https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=ja&gl=JP&ceid=JP:ja',
+  disaster:      'https://news.google.com/rss/search?q=%E7%81%BD%E5%AE%B3+OR+%E5%9C%B0%E9%9C%87+OR+%E5%8F%B0%E9%A2%A8+OR+%E6%B4%AA%E6%B0%B4&hl=ja&gl=JP&ceid=JP%3Aja',
 };
 // フォールバック（Google News が取得できない場合に使用）
 const RSS_FEEDS_FALLBACK = {
-  disaster: 'https://news.yahoo.co.jp/rss/topics/disaster.xml',
+  general:       'https://news.yahoo.co.jp/rss/topics/top-picks.xml',
+  disaster:      'https://news.yahoo.co.jp/rss/topics/disaster.xml',
 };
 
 async function fetchRSSNews(category) {
@@ -1681,13 +1696,12 @@ async function fetchRSSNews(category) {
     data = await tryRss2json(fallback);
   }
 
-  const feedTitle = data.feed?.title || 'ニュース';
   const articles = data.items.slice(0, 20).map(item => ({
     title:       item.title || '',
     description: (item.description || '').replace(/<[^>]*>/g, '').trim(),
     url:         item.link || '',
     image:       item.thumbnail || item.enclosure?.link || '',
-    source:      feedTitle,
+    source:      item.author || 'Google ニュース',
     sourceIcon:  data.feed?.favicon || '',
     publishedAt: item.pubDate || '',
     lang:        'ja',
@@ -1707,10 +1721,8 @@ async function fetchAndRenderNews(category) {
   }
   renderNewsSkeleton();
   try {
-    // disaster は RSS、それ以外は GNews API
-    const articles = category === 'disaster'
-      ? await fetchRSSNews(category)
-      : await fetchGNews(category);
+    // 全カテゴリ Google News RSS（GNews API から移行）
+    const articles = await fetchRSSNews(category);
     if (articles.length > 0) { renderNewsCards(articles, label); updateNewsBadges(); return; }
     showNewsMessage('📭', '「' + label + '」の記事が見つかりませんでした', 'しばらく後にお試しください。');
   } catch(e) {
