@@ -1,6 +1,6 @@
-# Luna & Elma — 天気 & ニュース PWA
+# Luna & Elma — 天気 & ニュース (PWA 対応)
 
-シンプルで美しい天気 + ニュース Progressive Web App です。
+シンプルで美しい天気 + ニュース Web App です。
 都市名または現在地から最新の天気情報を取得し、カテゴリ別ニュースと AI アシスタントを提供します。
 
 **公開URL:** https://yuuuki84.github.io/Weather-2-App/
@@ -191,7 +191,6 @@ cp config.example.js config.js
 | `SUPABASE_URL` / `SUPABASE_ANON_KEY` | [supabase.com](https://supabase.com/) |
 | `CHAT_API_URL` | Cloudflare Workers デプロイ後の URL |
 
-> `config.js` は `.gitignore` で除外済みです。GitHub にコミットしないでください。
 
 ---
 
