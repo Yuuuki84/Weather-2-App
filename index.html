@@ -53,7 +53,7 @@
     }
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html { scroll-behavior: smooth; }
+    html { scroll-behavior: smooth; overflow-x: hidden; }
 
     body {
       font-family: var(--font);
@@ -166,7 +166,55 @@
     }
     .logo span { font-weight: 300; font-family: var(--font); -webkit-text-fill-color: var(--text2); font-size: 14px; margin-left: 8px; }
 
-    .header-actions { display: flex; gap: 10px; align-items: center; }
+    .header-actions { display: flex; gap: 10px; align-items: center; flex-shrink: 0; }
+    .header { gap: 8px; }
+    .logo { min-width: 0; white-space: nowrap; }
+
+    /* ===== SETTINGS DROPDOWN (mobile) ===== */
+    .settings-menu-wrap { position: relative; }
+    .settings-dropdown {
+      display: none;
+      position: fixed;
+      top: 70px;
+      right: 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      box-shadow: var(--shadow2);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      padding: 8px;
+      min-width: 200px;
+      z-index: 9999;
+    }
+    .settings-dropdown.open { display: block; }
+    .settings-dropdown-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      gap: 12px;
+    }
+    .settings-dropdown-label { font-size: 14px; color: var(--text2); white-space: nowrap; }
+    .settings-dropdown select { font-size: 14px; background: var(--surface2); color: var(--text); border: 1px solid var(--border2); border-radius: 8px; padding: 8px 10px; }
+    .settings-dropdown .btn.icon-btn { min-width: 44px; min-height: 44px; padding: 10px; font-size: 16px; }
+
+    /* デスクトップ：mobile専用を隠す */
+    .header-mobile-only { display: none; }
+    @media (max-width: 540px) {
+      .header-desktop-only { display: none !important; }
+      .header-mobile-only { display: block; }
+      /* ヘッダーを2行構成に：1行目ロゴ / 2行目ボタン */
+      .header { flex-wrap: wrap; margin-bottom: 20px; }
+      .header > div:first-child { width: 100%; }
+      .header-actions { width: 100%; justify-content: flex-end; gap: 8px; }
+      /* タップ領域を44px確保（Apple HIG準拠） */
+      .header-actions .btn { min-width: 44px; min-height: 44px; display: flex; align-items: center; justify-content: center; }
+      /* ログイン時のユーザー名を非表示にしてアバターのみ表示 */
+      .user-email { display: none; }
+      .user-badge { padding: 4px; border-radius: 50%; min-width: 44px; min-height: 44px; justify-content: center; }
+      #login-btn { font-size: 12px !important; padding: 0 12px; }
+    }
 
     /* ===== GLASS CARD ===== */
     .card {
@@ -530,8 +578,14 @@
       display: flex;
       gap: 8px;
       margin-bottom: 16px;
-      flex-wrap: wrap;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      padding-bottom: 4px;
     }
+    .news-tabs::-webkit-scrollbar { display: none; }
+
     .news-tab {
       padding: 8px 16px;
       border-radius: 999px;
@@ -543,12 +597,125 @@
       font-weight: 600;
       cursor: pointer;
       transition: all .15s;
+      white-space: nowrap;
     }
     .news-tab.active {
       background: linear-gradient(135deg, var(--accent), #4f46e5);
       border-color: transparent;
       color: white;
     }
+    .news-tab { position: relative; }
+    .tab-badge {
+      position: absolute;
+      top: -4px;
+      right: -4px;
+      min-width: 16px;
+      height: 16px;
+      padding: 0 4px;
+      border-radius: 999px;
+      background: var(--accent);
+      color: white;
+      font-size: 10px;
+      font-weight: 700;
+      line-height: 16px;
+      text-align: center;
+      pointer-events: none;
+    }
+
+    /* ===== PULL-TO-REFRESH ===== */
+    #ptr-indicator {
+      position: fixed;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%) translateY(-60px);
+      background: var(--surface2);
+      border: 1px solid var(--border2);
+      border-radius: 999px;
+      padding: 6px 16px;
+      font-size: 12px;
+      color: var(--text2);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: transform .25s ease, opacity .25s ease;
+      z-index: 9999;
+      pointer-events: none;
+      opacity: 0;
+    }
+    #ptr-indicator.ptr-pulling {
+      transform: translateX(-50%) translateY(12px);
+      opacity: 1;
+    }
+    #ptr-indicator.ptr-refreshing {
+      transform: translateX(-50%) translateY(12px);
+      opacity: 1;
+    }
+    .ptr-spinner {
+      width: 12px;
+      height: 12px;
+      border: 2px solid var(--border2);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .6s linear infinite;
+    }
+
+    /* ===== PRIVACY / ONBOARDING MODAL ===== */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.65);
+      backdrop-filter: blur(6px);
+      z-index: 10000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .2s;
+    }
+    .modal-backdrop.show {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .modal-card {
+      background: var(--surface);
+      border: 1px solid var(--border2);
+      border-radius: var(--radius);
+      padding: 28px 24px 24px;
+      max-width: 480px;
+      width: 100%;
+      max-height: 85vh;
+      overflow-y: auto;
+    }
+    .modal-card h2 { font-size: 18px; font-weight: 700; margin: 0 0 12px; }
+    .modal-card p, .modal-card li { font-size: 14px; color: var(--text2); line-height: 1.7; }
+    .modal-card ul { padding-left: 20px; margin: 8px 0; }
+    .modal-close-btn {
+      margin-top: 20px;
+      width: 100%;
+      padding: 10px;
+      background: linear-gradient(135deg, var(--accent), #4f46e5);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    /* onboarding steps */
+    .ob-steps { display: flex; gap: 6px; justify-content: center; margin-bottom: 16px; }
+    .ob-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border2); transition: background .2s; }
+    .ob-dot.active { background: var(--accent); }
+    .ob-step { display: none; }
+    .ob-step.active { display: block; }
+    .ob-step-icon { font-size: 40px; text-align: center; margin-bottom: 10px; }
+    .ob-step h3 { font-size: 16px; font-weight: 700; margin: 0 0 8px; text-align: center; }
+    .ob-step p { font-size: 13px; color: var(--text2); line-height: 1.7; text-align: center; }
+    .ob-nav { display: flex; gap: 8px; margin-top: 20px; }
+    .ob-nav button { flex: 1; padding: 10px; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; border: 1px solid var(--border2); background: var(--surface2); color: var(--text); }
+    .ob-nav .ob-next { background: linear-gradient(135deg, var(--accent), #4f46e5); color: white; border-color: transparent; }
 
     .news-grid {
       display: grid;
@@ -1526,6 +1693,12 @@
 </head>
 
 <body>
+  <!-- Pull-to-refresh indicator -->
+  <div id="ptr-indicator" aria-hidden="true">
+    <span id="ptr-icon">↓</span>
+    <span id="ptr-label">引いて更新</span>
+  </div>
+
   <!-- JMA 警報・注意報バナー（発令時のみ表示） -->
   <div id="jma-warning-banner" style="display:none" role="alert" aria-live="polite"></div>
 
@@ -1548,13 +1721,34 @@
           <button class="btn" id="login-btn" style="font-size:13px;">ログイン</button>
         </div>
         <button class="btn icon-btn notif-btn-off" id="notif-btn" title="天気アラート通知をONにする" aria-label="気象通知を設定" style="font-size:16px;">🔔</button>
-        <select id="unit-select" title="単位">
+        <select id="unit-select" class="header-desktop-only" title="単位">
           <option value="metric">℃ 摂氏</option>
           <option value="imperial">℉ 華氏</option>
         </select>
-        <button id="font-size-btn" class="icon-btn btn" title="フォントサイズ" aria-label="フォントサイズ切替">Ａ</button>
+        <button id="font-size-btn" class="icon-btn btn header-desktop-only" title="フォントサイズ" aria-label="フォントサイズ切替">Ａ</button>
         <button class="btn icon-btn" id="theme-btn" title="テーマ切替" aria-label="テーマを切替">🌙</button>
-        <button class="btn icon-btn" id="clear-history-btn" title="履歴クリア">🧹</button>
+        <button class="btn icon-btn header-desktop-only" id="clear-history-btn" title="履歴クリア">🧹</button>
+        <!-- モバイル用設定メニュー -->
+        <div class="settings-menu-wrap header-mobile-only">
+          <button class="btn icon-btn" id="settings-menu-btn" title="設定" aria-label="設定メニュー">⚙</button>
+          <div class="settings-dropdown" id="settings-dropdown" aria-hidden="true">
+            <div class="settings-dropdown-row">
+              <span class="settings-dropdown-label">単位</span>
+              <select id="unit-select-mobile" title="単位">
+                <option value="metric">℃ 摂氏</option>
+                <option value="imperial">℉ 華氏</option>
+              </select>
+            </div>
+            <div class="settings-dropdown-row">
+              <span class="settings-dropdown-label">文字サイズ</span>
+              <button id="font-size-btn-mobile" class="btn icon-btn" title="フォントサイズ" aria-label="フォントサイズ切替">Ａ</button>
+            </div>
+            <div class="settings-dropdown-row">
+              <span class="settings-dropdown-label">履歴クリア</span>
+              <button class="btn icon-btn" id="clear-history-btn-mobile" title="履歴クリア">🧹</button>
+            </div>
+          </div>
+        </div>
       </div>
     </header>
 
@@ -1859,20 +2053,81 @@
         <button class="news-filter-btn" id="news-filter-clear-read" title="既読をリセット">🗑 既読クリア</button>
       </div>
 
+
+
       <div class="news-tabs" id="news-tabs">
         <button class="news-tab active" data-cat="general">トップ</button>
+        <button class="news-tab" data-cat="domestic">国内</button>
+        <button class="news-tab" data-cat="world">国際</button>
+        <button class="news-tab" data-cat="politics">政治</button>
+        <button class="news-tab" data-cat="economy">経済</button>
         <button class="news-tab" data-cat="technology">テクノロジー</button>
         <button class="news-tab" data-cat="science">サイエンス</button>
         <button class="news-tab" data-cat="sports">スポーツ</button>
         <button class="news-tab" data-cat="entertainment">エンタメ</button>
         <button class="news-tab" data-cat="health">健康</button>
         <button class="news-tab" data-cat="business">ビジネス</button>
+        <button class="news-tab" data-cat="gourmet">グルメ</button>
+        <button class="news-tab" data-cat="travel">旅行</button>
+        <button class="news-tab" data-cat="local">地域</button>
         <button class="news-tab" data-cat="disaster">🚨 災害</button>
       </div>
 
       <div id="news-container"></div>
     </div>
 
+    <!-- Privacy policy link -->
+    <div style="text-align:center;padding:24px 0 8px;font-size:12px;color:var(--text2);">
+      <button id="privacy-link" style="background:none;border:none;color:var(--text2);font-size:12px;text-decoration:underline;cursor:pointer;">プライバシーポリシー</button>
+    </div>
+  </div>
+
+  <!-- Privacy policy modal -->
+  <div class="modal-backdrop" id="privacy-modal" role="dialog" aria-modal="true" aria-labelledby="privacy-modal-title">
+    <div class="modal-card">
+      <h2 id="privacy-modal-title">🔒 プライバシーポリシー</h2>
+      <p>Luna &amp; Elma は、快適な利用体験を提供するために以下のデータを端末内またはクラウドに保存します。</p>
+      <ul>
+        <li><strong>位置情報</strong> — 現在地の天気取得時のみ使用。外部に送信後、座標は端末に保持しません。</li>
+        <li><strong>設定・履歴</strong> — テーマ、単位、検索履歴、お気に入りは <code>localStorage</code> に保存されます。</li>
+        <li><strong>ニュース既読・ブックマーク</strong> — <code>localStorage</code> に保存。端末外には送信されません。</li>
+        <li><strong>要約キャッシュ</strong> — AI が生成した要約テキストを最大7日間 <code>localStorage</code> に保存します。</li>
+        <li><strong>アカウント情報</strong> — ログイン時は Supabase（Northeast Asia / Tokyo リージョン）にメールアドレスと設定が保存されます。</li>
+        <li><strong>チャット履歴</strong> — ブラウザの <code>localStorage</code> のみに保存。サーバーには送信されません。</li>
+      </ul>
+      <p>第三者への個人情報販売は行いません。詳細はお問い合わせください。</p>
+      <button class="modal-close-btn" id="privacy-modal-close">閉じる</button>
+    </div>
+  </div>
+
+  <!-- Onboarding modal -->
+  <div class="modal-backdrop" id="onboarding-modal" role="dialog" aria-modal="true" aria-labelledby="ob-title">
+    <div class="modal-card">
+      <div class="ob-steps">
+        <div class="ob-dot active" data-step="0"></div>
+        <div class="ob-dot" data-step="1"></div>
+        <div class="ob-dot" data-step="2"></div>
+      </div>
+      <div class="ob-step active" data-step="0">
+        <div class="ob-step-icon">🌤️</div>
+        <h3 id="ob-title">Luna &amp; Elma へようこそ</h3>
+        <p>天気・ニュース・AI チャットをひとつのアプリで。<br>都市名を入力するか、現在地ボタンで今日の天気を確認しましょう。</p>
+      </div>
+      <div class="ob-step" data-step="1">
+        <div class="ob-step-icon">📰</div>
+        <h3>ニュースをカスタマイズ</h3>
+        <p>タブでカテゴリを切り替え。<br>気になる記事は右スワイプでブックマーク、左スワイプで既読にできます。</p>
+      </div>
+      <div class="ob-step" data-step="2">
+        <div class="ob-step-icon">💬</div>
+        <h3>AI に何でも聞いてみて</h3>
+        <p>画面下部のチャットから Luna に質問できます。<br>また、ニュース記事の「要約」ボタンで AI が内容を要約します。</p>
+      </div>
+      <div class="ob-nav">
+        <button class="ob-prev" id="ob-prev" style="display:none">← 戻る</button>
+        <button class="ob-next" id="ob-next">次へ →</button>
+      </div>
+    </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>

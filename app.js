@@ -1345,6 +1345,14 @@ const JP_CITY_ROMAJI = {
   '大津':'Otsu','草津':'Kusatsu','彦根':'Hikone',
   '京都':'Kyoto','宇治':'Uji','舞鶴':'Maizuru',
   '大阪':'Osaka','堺':'Sakai','東大阪':'Higashiosaka','枚方':'Hirakata',
+  // 大阪市内（区名・繁華街）→ Osaka にマッピング
+  '梅田':'Osaka','なんば':'Osaka','難波':'Osaka','心斎橋':'Osaka','天王寺':'Osaka',
+  '難波':'Osaka','新世界':'Osaka','上本町':'Osaka','本町':'Osaka','肥後橋':'Osaka',
+  '住之江区':'Osaka','阿倍野区':'Osaka','西成区':'Osaka','生野区':'Osaka',
+  '東住吉区':'Osaka','平野区':'Osaka','住吉区':'Osaka','東淀川区':'Osaka',
+  '淀川区':'Osaka','西淀川区':'Osaka','此花区':'Osaka','港区':'Osaka',
+  '大正区':'Osaka','浪速区':'Osaka','西区':'Osaka','福島区':'Osaka',
+  '都島区':'Osaka','旭区':'Osaka','城東区':'Osaka','鶴見区':'Osaka',
   '神戸':'Kobe','姫路':'Himeji','西宮':'Nishinomiya','尼崎':'Amagasaki','明石':'Akashi',
   '奈良':'Nara','橿原':'Kashihara',
   '和歌山':'Wakayama',
@@ -1601,19 +1609,15 @@ async function getWeatherByGeo() {
 // ===== ニュース（GNews API） =====
 
 const CATEGORY_LABEL = {
-  general:'トップ', technology:'テクノロジー', science:'サイエンス',
-  sports:'スポーツ', entertainment:'エンタメ', health:'ヘルス', business:'ビジネス',
-  disaster:'🚨 災害',
-};
-
-// GNews API カテゴリマッピング
-const GNEWS_CATEGORY = {
-  general: 'general', technology: 'technology', science: 'science',
-  sports: 'sports', entertainment: 'entertainment', health: 'health', business: 'business',
+  general:'トップ', domestic:'国内', world:'国際', politics:'政治', economy:'経済',
+  technology:'テクノロジー', science:'サイエンス', sports:'スポーツ',
+  entertainment:'エンタメ', health:'健康', business:'ビジネス',
+  gourmet:'グルメ', travel:'旅行', local:'地域', disaster:'🚨 災害',
 };
 
 const newsCache = {};
 const CACHE_TTL = 15 * 60 * 1000;
+
 
 async function fetchGNews(category) {
   const now = Date.now();
@@ -1645,56 +1649,73 @@ async function fetchGNews(category) {
   return articles;
 }
 
-// RSS フィード（disaster はこちらを使用）
-// rss2json.com がサーバーサイドで取得するため CORS・403 問題を回避
+// 1次: Yahoo Japan RSS（カテゴリ別・30〜60分更新）
 const RSS_FEEDS = {
-  // Google News RSS: 災害キーワード検索（複数メディアを横断・無料）
-  disaster: 'https://news.google.com/rss/search?q=%E7%81%BD%E5%AE%B3+OR+%E5%9C%B0%E9%9C%87+OR+%E5%8F%B0%E9%A2%A8+OR+%E6%B4%AA%E6%B0%B4&hl=ja&gl=JP&ceid=JP%3Aja',
+  general:       'https://news.yahoo.co.jp/rss/topics/top-picks.xml',
+  domestic:      'https://news.yahoo.co.jp/rss/topics/domestic.xml',
+  world:         'https://news.yahoo.co.jp/rss/topics/world.xml',
+  politics:      'https://news.yahoo.co.jp/rss/topics/politics.xml',
+  economy:       'https://news.yahoo.co.jp/rss/topics/economy.xml',
+  technology:    'https://news.yahoo.co.jp/rss/topics/it.xml',
+  science:       'https://news.yahoo.co.jp/rss/topics/science.xml',
+  sports:        'https://news.yahoo.co.jp/rss/topics/sports.xml',
+  entertainment: 'https://news.yahoo.co.jp/rss/topics/entertainment.xml',
+  health:        'https://news.yahoo.co.jp/rss/topics/health.xml',
+  business:      'https://news.yahoo.co.jp/rss/topics/business.xml',
+  gourmet:       'https://news.yahoo.co.jp/rss/topics/gourmet.xml',
+  travel:        'https://news.yahoo.co.jp/rss/topics/travel.xml',
+  local:         'https://news.yahoo.co.jp/rss/topics/local.xml',
+  disaster:      'https://news.yahoo.co.jp/rss/topics/disaster.xml',
 };
-// フォールバック（Google News が取得できない場合に使用）
+// 2次フォールバック: Google News RSS
 const RSS_FEEDS_FALLBACK = {
-  disaster: 'https://news.yahoo.co.jp/rss/topics/disaster.xml',
+  general:       'https://news.google.com/rss?hl=ja&gl=JP&ceid=JP:ja',
+  domestic:      'https://news.google.com/rss/headlines/section/topic/NATION?hl=ja&gl=JP&ceid=JP:ja',
+  world:         'https://news.google.com/rss/headlines/section/topic/WORLD?hl=ja&gl=JP&ceid=JP:ja',
+  politics:      'https://news.google.com/rss/search?q=%E6%94%BF%E6%B2%BB+OR+%E5%9B%BD%E4%BC%9A&hl=ja&gl=JP&ceid=JP:ja',
+  economy:       'https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=ja&gl=JP&ceid=JP:ja',
+  technology:    'https://news.google.com/rss/headlines/section/topic/TECHNOLOGY?hl=ja&gl=JP&ceid=JP:ja',
+  science:       'https://news.google.com/rss/headlines/section/topic/SCIENCE?hl=ja&gl=JP&ceid=JP:ja',
+  sports:        'https://news.google.com/rss/headlines/section/topic/SPORTS?hl=ja&gl=JP&ceid=JP:ja',
+  entertainment: 'https://news.google.com/rss/headlines/section/topic/ENTERTAINMENT?hl=ja&gl=JP&ceid=JP:ja',
+  health:        'https://news.google.com/rss/headlines/section/topic/HEALTH?hl=ja&gl=JP&ceid=JP:ja',
+  business:      'https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=ja&gl=JP&ceid=JP:ja',
+  gourmet:       'https://news.google.com/rss/search?q=%E3%82%B0%E3%83%AB%E3%83%A1+OR+%E9%A3%B2%E9%A3%9F%E5%BA%97&hl=ja&gl=JP&ceid=JP:ja',
+  travel:        'https://news.google.com/rss/search?q=%E6%97%85%E8%A1%8C+OR+%E8%A6%B3%E5%85%89&hl=ja&gl=JP&ceid=JP:ja',
+  local:         'https://news.google.com/rss/headlines/section/topic/NATION?hl=ja&gl=JP&ceid=JP:ja',
+  disaster:      'https://news.google.com/rss/search?q=%E7%81%BD%E5%AE%B3+OR+%E5%9C%B0%E9%9C%87+OR+%E5%8F%B0%E9%A2%A8+OR+%E6%B4%AA%E6%B0%B4&hl=ja&gl=JP&ceid=JP%3Aja',
 };
 
-async function fetchRSSNews(category) {
-  const now = Date.now();
-  if (newsCache[category] && (now - newsCache[category].ts) < CACHE_TTL) return newsCache[category].articles;
-  const rssUrl = RSS_FEEDS[category];
-  if (!rssUrl) throw new Error('RSS未設定');
-
-  // rss2json.com API: サーバーサイドで RSS を取得→ JSON 変換（CORS フリー）
-  async function tryRss2json(url) {
-    const apiUrl = 'https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent(url);
-    const res = await fetch(apiUrl, { signal: timeoutSignal(14000) });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data = await res.json();
-    if (data.status !== 'ok' || !data.items?.length) throw new Error('記事なし');
-    return data;
-  }
-
-  let data;
-  try {
-    data = await tryRss2json(rssUrl);
-  } catch {
-    const fallback = RSS_FEEDS_FALLBACK[category];
-    if (!fallback) throw new Error('記事が見つかりませんでした');
-    data = await tryRss2json(fallback);
-  }
-
-  const feedTitle = data.feed?.title || 'ニュース';
-  const articles = data.items.slice(0, 20).map(item => ({
+// rss2json.com 経由で RSS を JSON に変換（CORS フリー）
+async function tryRss2json(url) {
+  const apiUrl = 'https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent(url);
+  const res = await fetch(apiUrl, { signal: timeoutSignal(12000) });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const data = await res.json();
+  if (data.status !== 'ok' || !data.items?.length) throw new Error('記事なし');
+  return data.items.map(item => ({
     title:       item.title || '',
     description: (item.description || '').replace(/<[^>]*>/g, '').trim(),
     url:         item.link || '',
     image:       item.thumbnail || item.enclosure?.link || '',
-    source:      feedTitle,
+    source:      item.author || data.feed?.title || '',
     sourceIcon:  data.feed?.favicon || '',
     publishedAt: item.pubDate || '',
     lang:        'ja',
   }));
-  newsCache[category] = { ts: now, articles };
-  try { localStorage.setItem('sora_news_offline_' + category, JSON.stringify({ ts: now, articles })); } catch {}
-  return articles;
+}
+
+// RSS フェッチ: Yahoo RSS → Google RSS フォールバック
+async function fetchRSSNews(category) {
+  const primaryUrl = RSS_FEEDS[category];
+  if (!primaryUrl) throw new Error('RSS未設定');
+  try {
+    return await tryRss2json(primaryUrl);
+  } catch {
+    const fallbackUrl = RSS_FEEDS_FALLBACK[category];
+    if (!fallbackUrl) throw new Error('記事が見つかりませんでした');
+    return await tryRss2json(fallbackUrl);
+  }
 }
 
 async function fetchAndRenderNews(category) {
@@ -1702,15 +1723,19 @@ async function fetchAndRenderNews(category) {
   const cached = newsCache[category];
   if (cached && (Date.now() - cached.ts) < CACHE_TTL) {
     renderNewsCards(cached.articles, label);
+    updateNewsBadges();
     return;
   }
   renderNewsSkeleton();
   try {
-    // disaster は RSS、それ以外は GNews API
-    const articles = category === 'disaster'
-      ? await fetchRSSNews(category)
-      : await fetchGNews(category);
-    if (articles.length > 0) { renderNewsCards(articles, label); return; }
+    // フェッチチェーン: 1次 Yahoo RSS → 2次 Google RSS
+    const articles = await fetchRSSNews(category);
+
+    if (articles.length > 0) {
+      newsCache[category] = { ts: Date.now(), articles };
+      try { localStorage.setItem('sora_news_offline_' + category, JSON.stringify({ ts: Date.now(), articles })); } catch {}
+      renderNewsCards(articles, label); updateNewsBadges(); return;
+    }
     showNewsMessage('📭', '「' + label + '」の記事が見つかりませんでした', 'しばらく後にお試しください。');
   } catch(e) {
     // オフラインキャッシュを確認
@@ -1980,10 +2005,18 @@ function cleanSummaryText(text) {
     .trim();
 }
 
+const SUMMARY_TTL = 7 * 24 * 60 * 60 * 1000; // 7日
+
 async function summarizeArticle(url, title, description) {
   const cacheKey = 'sora_summary_' + url;
-  const cached = sessionStorage.getItem(cacheKey);
-  if (cached) return cached;
+  try {
+    const raw = localStorage.getItem(cacheKey);
+    if (raw) {
+      const { text: t, ts } = JSON.parse(raw);
+      if (Date.now() - ts < SUMMARY_TTL) return t;
+      localStorage.removeItem(cacheKey);
+    }
+  } catch {}
   if (!CHAT_API_URL || CHAT_API_URL === 'YOUR_CHAT_WORKER_URL') return '⚠️ Worker URLが未設定です。';
   const controller = new AbortController();
   const tid = setTimeout(() => controller.abort(), 30000);
@@ -2000,12 +2033,24 @@ async function summarizeArticle(url, title, description) {
     if (data.error) return `⚠️ ${data.error}`;
     const text = cleanSummaryText(data.summary || '');
     if (!text) return '⚠️ 要約を取得できませんでした。';
-    sessionStorage.setItem(cacheKey, text);
+    try { localStorage.setItem(cacheKey, JSON.stringify({ text, ts: Date.now() })); } catch {}
     return text;
   } catch (e) {
     clearTimeout(tid);
     if (e.name === 'AbortError') return '⚠️ タイムアウトしました。';
     return '⚠️ 要約の取得中にエラーが発生しました。';
+  }
+}
+
+function cleanSummaryCache() {
+  const now = Date.now();
+  for (let i = localStorage.length - 1; i >= 0; i--) {
+    const key = localStorage.key(i);
+    if (!key || !key.startsWith('sora_summary_')) continue;
+    try {
+      const { ts } = JSON.parse(localStorage.getItem(key));
+      if (now - ts >= SUMMARY_TTL) localStorage.removeItem(key);
+    } catch { localStorage.removeItem(key); }
   }
 }
 
@@ -2042,6 +2087,7 @@ function markAsRead(url) {
   set.add(url);
   const arr = [...set].slice(-300);
   try { localStorage.setItem(LS.newsRead, JSON.stringify(arr)); } catch {}
+  updateNewsBadges();
   // クラウドへの書き込みはデバウンスして過剰なAPIコールを防ぐ
   clearTimeout(_syncReadTimer);
   _syncReadTimer = setTimeout(() => sbSaveSettings({ news_read: arr.slice(-100) }), 3000);
@@ -2049,6 +2095,7 @@ function markAsRead(url) {
 function clearReadUrls() {
   try { localStorage.removeItem(LS.newsRead); } catch {}
   sbSaveSettings({ news_read: [] });
+  updateNewsBadges();
 }
 
 let newsShowUnreadOnly = false;
@@ -2110,8 +2157,36 @@ clearHistoryBtn.addEventListener('click', clearHistory);
 unitSelect.addEventListener('change', () => {
   localStorage.setItem(LS.unit, unitSelect.value);
   sbSaveSettings({ unit: unitSelect.value });
+  const mobileSelect = document.getElementById('unit-select-mobile');
+  if (mobileSelect) mobileSelect.value = unitSelect.value;
   const c = cityInput.value.trim();
   if (c) getWeatherByCity(c);
+});
+
+// モバイル設定メニュー
+const settingsMenuBtn = document.getElementById('settings-menu-btn');
+const settingsDropdown = document.getElementById('settings-dropdown');
+if (settingsMenuBtn && settingsDropdown) {
+  settingsMenuBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    settingsDropdown.classList.toggle('open');
+  });
+  document.addEventListener('click', () => settingsDropdown.classList.remove('open'));
+}
+const unitSelectMobile = document.getElementById('unit-select-mobile');
+if (unitSelectMobile) {
+  unitSelectMobile.value = unitSelect.value;
+  unitSelectMobile.addEventListener('change', () => {
+    unitSelect.value = unitSelectMobile.value;
+    localStorage.setItem(LS.unit, unitSelectMobile.value);
+    sbSaveSettings({ unit: unitSelectMobile.value });
+    const c = cityInput.value.trim();
+    if (c) getWeatherByCity(c);
+  });
+}
+document.getElementById('clear-history-btn-mobile')?.addEventListener('click', () => {
+  clearHistory();
+  settingsDropdown?.classList.remove('open');
 });
 newsTabs.querySelectorAll('.news-tab').forEach(tab => {
   tab.addEventListener('click', () => {
@@ -2124,6 +2199,7 @@ newsTabs.querySelectorAll('.news-tab').forEach(tab => {
     fetchAndRenderNews(currentCategory);
   });
 });
+
 
 // 雨バナー閉じるボタン
 document.getElementById('rain-banner-close')?.addEventListener('click', () => {
@@ -2381,8 +2457,126 @@ function setAuthMsg(type, msg) {
   el.textContent = msg;
 }
 
+// ===== プルトゥリフレッシュ =====
+(function initPullToRefresh() {
+  const indicator = document.getElementById('ptr-indicator');
+  const ptrIcon   = document.getElementById('ptr-icon');
+  const ptrLabel  = document.getElementById('ptr-label');
+  if (!indicator) return;
+
+  let startY = 0;
+  let pulling = false;
+  const THRESHOLD = 80;
+
+  document.addEventListener('touchstart', e => {
+    if (window.scrollY === 0) { startY = e.touches[0].clientY; pulling = true; }
+  }, { passive: true });
+
+  document.addEventListener('touchmove', e => {
+    if (!pulling) return;
+    const dy = e.touches[0].clientY - startY;
+    if (dy > 10) {
+      indicator.classList.add('ptr-pulling');
+      ptrIcon.textContent  = dy >= THRESHOLD ? '↺' : '↓';
+      ptrLabel.textContent = dy >= THRESHOLD ? '放して更新' : '引いて更新';
+    }
+  }, { passive: true });
+
+  document.addEventListener('touchend', e => {
+    if (!pulling) return;
+    const dy = e.changedTouches[0].clientY - startY;
+    pulling = false;
+    if (dy >= THRESHOLD) {
+      ptrIcon.textContent  = '';
+      ptrLabel.textContent = '更新中...';
+      indicator.classList.remove('ptr-pulling');
+      indicator.classList.add('ptr-refreshing');
+      indicator.querySelector('.ptr-spinner')?.remove();
+      const spinner = document.createElement('span');
+      spinner.className = 'ptr-spinner';
+      indicator.insertBefore(spinner, ptrIcon);
+      const done = () => {
+        indicator.classList.remove('ptr-refreshing');
+        spinner.remove();
+        ptrIcon.textContent  = '↓';
+        ptrLabel.textContent = '引いて更新';
+      };
+      const tasks = [fetchAndRenderNews(currentCategory)];
+      if (lastCoords) tasks.push(getWeatherByGeo());
+      else if (currentCity) tasks.push(getWeatherByCity(currentCity));
+      Promise.allSettled(tasks).then(done);
+    } else {
+      indicator.classList.remove('ptr-pulling');
+      ptrIcon.textContent  = '↓';
+      ptrLabel.textContent = '引いて更新';
+    }
+  }, { passive: true });
+})();
+
+// ===== ニュース未読バッジ =====
+function updateNewsBadges() {
+  const readSet = loadReadUrls();
+  newsTabs.querySelectorAll('.news-tab').forEach(tab => {
+    const cat = tab.dataset.cat;
+    const cached = newsCache[cat];
+    let existing = tab.querySelector('.tab-badge');
+    if (!cached?.articles?.length) { existing?.remove(); return; }
+    const count = cached.articles.filter(a => a.url && !readSet.has(a.url)).length;
+    if (count <= 0) { existing?.remove(); return; }
+    if (!existing) { existing = document.createElement('span'); existing.className = 'tab-badge'; tab.appendChild(existing); }
+    existing.textContent = count > 99 ? '99+' : String(count);
+  });
+}
+
+// ===== プライバシーポリシー =====
+(function initPrivacyModal() {
+  const modal = document.getElementById('privacy-modal');
+  const closeBtn = document.getElementById('privacy-modal-close');
+  const link = document.getElementById('privacy-link');
+  if (!modal) return;
+  link?.addEventListener('click', () => modal.classList.add('show'));
+  closeBtn?.addEventListener('click', () => modal.classList.remove('show'));
+  modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('show'); });
+})();
+
+// ===== オンボーディング =====
+function initOnboarding() {
+  const ONBOARDING_KEY = 'sora_onboarding_v1';
+  if (localStorage.getItem(ONBOARDING_KEY)) return;
+  const modal   = document.getElementById('onboarding-modal');
+  const nextBtn = document.getElementById('ob-next');
+  const prevBtn = document.getElementById('ob-prev');
+  const dots    = modal?.querySelectorAll('.ob-dot');
+  const steps   = modal?.querySelectorAll('.ob-step');
+  if (!modal || !steps?.length) return;
+  let current = 0;
+  const total = steps.length;
+
+  const show = idx => {
+    steps.forEach((s, i) => s.classList.toggle('active', i === idx));
+    dots.forEach((d, i) => d.classList.toggle('active', i === idx));
+    prevBtn.style.display = idx === 0 ? 'none' : '';
+    nextBtn.textContent = idx === total - 1 ? 'はじめる ✓' : '次へ →';
+    current = idx;
+  };
+
+  nextBtn?.addEventListener('click', () => {
+    if (current < total - 1) { show(current + 1); }
+    else {
+      modal.classList.remove('show');
+      localStorage.setItem(ONBOARDING_KEY, '1');
+    }
+  });
+  prevBtn?.addEventListener('click', () => { if (current > 0) show(current - 1); });
+
+  show(0);
+  modal.classList.add('show');
+}
+
 // ===== 初期化 =====
 (function init() {
+  cleanSummaryCache();
+  initOnboarding();
   const savedTheme = localStorage.getItem(LS.theme);
   if (savedTheme === 'dark' || savedTheme === 'light') applyTheme(savedTheme);
   else applyTheme(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
@@ -2424,14 +2618,22 @@ function setAuthMsg(type, msg) {
   function applyFontSize(idx) {
     fontSizes.forEach(c => document.body.classList.remove(c));
     document.body.classList.add(fontSizes[idx]);
-    const btn = document.getElementById('font-size-btn');
-    if (btn) { btn.textContent = ['ａ', 'Ａ', '𝐀'][idx] || 'Ａ'; btn.title = ['小', '中', '大'][idx] + ' フォントサイズ'; }
+    const labels = ['ａ', 'Ａ', '𝐀'];
+    const titles = ['小', '中', '大'];
+    ['font-size-btn', 'font-size-btn-mobile'].forEach(id => {
+      const btn = document.getElementById(id);
+      if (btn) { btn.textContent = labels[idx] || 'Ａ'; btn.title = titles[idx] + ' フォントサイズ'; }
+    });
   }
   applyFontSize(fontSizeIdx);
-  document.getElementById('font-size-btn')?.addEventListener('click', () => {
-    fontSizeIdx = (fontSizeIdx + 1) % 3;
-    applyFontSize(fontSizeIdx);
-    localStorage.setItem(LS.fontSize, fontSizeIdx);
+  ['font-size-btn', 'font-size-btn-mobile'].forEach(id => {
+    document.getElementById(id)?.addEventListener('click', () => {
+      fontSizeIdx = (fontSizeIdx + 1) % 3;
+      applyFontSize(fontSizeIdx);
+      localStorage.setItem(LS.fontSize, fontSizeIdx);
+      // zoom変更でドロップダウンがずれるため閉じる
+      document.getElementById('settings-dropdown')?.classList.remove('open');
+    });
   });
 
   // manifest の ?action=geo / ?tab=news 対応
