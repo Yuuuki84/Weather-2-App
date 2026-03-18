@@ -1,5 +1,5 @@
 // ===== Luna & Elma Service Worker =====
-const CACHE_NAME = 'luna-elma-v2';
+const CACHE_NAME = 'luna-elma-v3';
 
 // TTL 設定（ミリ秒）
 const TTL_WEATHER = 10 * 60 * 1000; // 10分
@@ -90,17 +90,18 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // 静的アセット → キャッシュ優先、なければネットワーク取得してキャッシュ保存
+  // 静的アセット → Stale-While-Revalidate
+  // キャッシュを即返しつつ、バックグラウンドで最新を取得してキャッシュ更新
   event.respondWith(
-    caches.match(event.request).then(cached => {
-      if (cached) return cached;
-      return fetch(event.request).then(res => {
-        if (res.ok) {
-          const clone = res.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
-        }
+    caches.open(CACHE_NAME).then(async cache => {
+      const cached = await cache.match(event.request);
+      const networkFetch = fetch(event.request).then(res => {
+        if (res.ok) cache.put(event.request, res.clone());
         return res;
-      });
+      }).catch(() => null);
+      // キャッシュがあれば即返す（バックグラウンドで更新）
+      // なければネットワーク取得を待つ
+      return cached || networkFetch;
     })
   );
 });

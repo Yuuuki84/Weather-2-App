@@ -53,7 +53,7 @@
     }
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html { scroll-behavior: smooth; }
+    html { scroll-behavior: smooth; overflow-x: hidden; }
 
     body {
       font-family: var(--font);
@@ -166,7 +166,16 @@
     }
     .logo span { font-weight: 300; font-family: var(--font); -webkit-text-fill-color: var(--text2); font-size: 14px; margin-left: 8px; }
 
-    .header-actions { display: flex; gap: 10px; align-items: center; }
+    .header-actions { display: flex; gap: 10px; align-items: center; flex-shrink: 0; }
+    .header { gap: 8px; }
+    .logo { min-width: 0; white-space: nowrap; }
+    @media (max-width: 480px) {
+      .logo { font-size: 20px; }
+      .logo span { display: none; }
+      .header-actions { gap: 6px; }
+      .btn.icon-btn { padding: 8px; font-size: 14px !important; }
+      #unit-select { font-size: 12px; padding: 6px 4px; max-width: 70px; }
+    }
 
     /* ===== GLASS CARD ===== */
     .card {
