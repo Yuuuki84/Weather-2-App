@@ -2133,8 +2133,36 @@ clearHistoryBtn.addEventListener('click', clearHistory);
 unitSelect.addEventListener('change', () => {
   localStorage.setItem(LS.unit, unitSelect.value);
   sbSaveSettings({ unit: unitSelect.value });
+  const mobileSelect = document.getElementById('unit-select-mobile');
+  if (mobileSelect) mobileSelect.value = unitSelect.value;
   const c = cityInput.value.trim();
   if (c) getWeatherByCity(c);
+});
+
+// モバイル設定メニュー
+const settingsMenuBtn = document.getElementById('settings-menu-btn');
+const settingsDropdown = document.getElementById('settings-dropdown');
+if (settingsMenuBtn && settingsDropdown) {
+  settingsMenuBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    settingsDropdown.classList.toggle('open');
+  });
+  document.addEventListener('click', () => settingsDropdown.classList.remove('open'));
+}
+const unitSelectMobile = document.getElementById('unit-select-mobile');
+if (unitSelectMobile) {
+  unitSelectMobile.value = unitSelect.value;
+  unitSelectMobile.addEventListener('change', () => {
+    unitSelect.value = unitSelectMobile.value;
+    localStorage.setItem(LS.unit, unitSelectMobile.value);
+    sbSaveSettings({ unit: unitSelectMobile.value });
+    const c = cityInput.value.trim();
+    if (c) getWeatherByCity(c);
+  });
+}
+document.getElementById('clear-history-btn-mobile')?.addEventListener('click', () => {
+  clearHistory();
+  settingsDropdown?.classList.remove('open');
 });
 newsTabs.querySelectorAll('.news-tab').forEach(tab => {
   tab.addEventListener('click', () => {
@@ -2565,14 +2593,20 @@ function initOnboarding() {
   function applyFontSize(idx) {
     fontSizes.forEach(c => document.body.classList.remove(c));
     document.body.classList.add(fontSizes[idx]);
-    const btn = document.getElementById('font-size-btn');
-    if (btn) { btn.textContent = ['ａ', 'Ａ', '𝐀'][idx] || 'Ａ'; btn.title = ['小', '中', '大'][idx] + ' フォントサイズ'; }
+    const labels = ['ａ', 'Ａ', '𝐀'];
+    const titles = ['小', '中', '大'];
+    ['font-size-btn', 'font-size-btn-mobile'].forEach(id => {
+      const btn = document.getElementById(id);
+      if (btn) { btn.textContent = labels[idx] || 'Ａ'; btn.title = titles[idx] + ' フォントサイズ'; }
+    });
   }
   applyFontSize(fontSizeIdx);
-  document.getElementById('font-size-btn')?.addEventListener('click', () => {
-    fontSizeIdx = (fontSizeIdx + 1) % 3;
-    applyFontSize(fontSizeIdx);
-    localStorage.setItem(LS.fontSize, fontSizeIdx);
+  ['font-size-btn', 'font-size-btn-mobile'].forEach(id => {
+    document.getElementById(id)?.addEventListener('click', () => {
+      fontSizeIdx = (fontSizeIdx + 1) % 3;
+      applyFontSize(fontSizeIdx);
+      localStorage.setItem(LS.fontSize, fontSizeIdx);
+    });
   });
 
   // manifest の ?action=geo / ?tab=news 対応
