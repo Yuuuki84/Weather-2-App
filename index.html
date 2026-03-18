@@ -169,12 +169,43 @@
     .header-actions { display: flex; gap: 10px; align-items: center; flex-shrink: 0; }
     .header { gap: 8px; }
     .logo { min-width: 0; white-space: nowrap; }
-    @media (max-width: 480px) {
+
+    /* ===== SETTINGS DROPDOWN (mobile) ===== */
+    .settings-menu-wrap { position: relative; }
+    .settings-dropdown {
+      display: none;
+      position: absolute;
+      top: calc(100% + 8px);
+      right: 0;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      box-shadow: var(--shadow2);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      padding: 8px;
+      min-width: 180px;
+      z-index: 200;
+    }
+    .settings-dropdown.open { display: block; }
+    .settings-dropdown-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 10px;
+      gap: 12px;
+    }
+    .settings-dropdown-label { font-size: 13px; color: var(--text2); white-space: nowrap; }
+    .settings-dropdown select { font-size: 13px; background: var(--surface2); color: var(--text); border: 1px solid var(--border2); border-radius: 8px; padding: 6px 8px; }
+
+    /* デスクトップ：mobile専用を隠す */
+    .header-mobile-only { display: none; }
+    @media (max-width: 540px) {
+      .header-desktop-only { display: none !important; }
+      .header-mobile-only { display: block; }
       .logo { font-size: 20px; }
       .logo span { display: none; }
       .header-actions { gap: 6px; }
-      .btn.icon-btn { padding: 8px; font-size: 14px !important; }
-      #unit-select { font-size: 12px; padding: 6px 4px; max-width: 70px; }
     }
 
     /* ===== GLASS CARD ===== */
@@ -1675,13 +1706,34 @@
           <button class="btn" id="login-btn" style="font-size:13px;">ログイン</button>
         </div>
         <button class="btn icon-btn notif-btn-off" id="notif-btn" title="天気アラート通知をONにする" aria-label="気象通知を設定" style="font-size:16px;">🔔</button>
-        <select id="unit-select" title="単位">
+        <select id="unit-select" class="header-desktop-only" title="単位">
           <option value="metric">℃ 摂氏</option>
           <option value="imperial">℉ 華氏</option>
         </select>
-        <button id="font-size-btn" class="icon-btn btn" title="フォントサイズ" aria-label="フォントサイズ切替">Ａ</button>
+        <button id="font-size-btn" class="icon-btn btn header-desktop-only" title="フォントサイズ" aria-label="フォントサイズ切替">Ａ</button>
         <button class="btn icon-btn" id="theme-btn" title="テーマ切替" aria-label="テーマを切替">🌙</button>
-        <button class="btn icon-btn" id="clear-history-btn" title="履歴クリア">🧹</button>
+        <button class="btn icon-btn header-desktop-only" id="clear-history-btn" title="履歴クリア">🧹</button>
+        <!-- モバイル用設定メニュー -->
+        <div class="settings-menu-wrap header-mobile-only">
+          <button class="btn icon-btn" id="settings-menu-btn" title="設定" aria-label="設定メニュー">⚙</button>
+          <div class="settings-dropdown" id="settings-dropdown" aria-hidden="true">
+            <div class="settings-dropdown-row">
+              <span class="settings-dropdown-label">単位</span>
+              <select id="unit-select-mobile" title="単位">
+                <option value="metric">℃ 摂氏</option>
+                <option value="imperial">℉ 華氏</option>
+              </select>
+            </div>
+            <div class="settings-dropdown-row">
+              <span class="settings-dropdown-label">文字サイズ</span>
+              <button id="font-size-btn-mobile" class="btn icon-btn" title="フォントサイズ" aria-label="フォントサイズ切替">Ａ</button>
+            </div>
+            <div class="settings-dropdown-row">
+              <span class="settings-dropdown-label">履歴クリア</span>
+              <button class="btn icon-btn" id="clear-history-btn-mobile" title="履歴クリア">🧹</button>
+            </div>
+          </div>
+        </div>
       </div>
     </header>
 
