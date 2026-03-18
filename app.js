@@ -1648,25 +1648,7 @@ async function fetchGNews(category) {
   return articles;
 }
 
-// 1次: 毎日新聞直接RSS（数分以内更新・動作確認済み）
-const MEDIA_RSS = {
-  general:       ['https://mainichi.jp/rss/etc/mainichi-flash.rss'],
-  domestic:      ['https://mainichi.jp/rss/etc/mainichi-flash.rss'],
-  world:         ['https://mainichi.jp/rss/etc/mainichi-flash.rss'],
-  politics:      ['https://mainichi.jp/rss/etc/mainichi-flash.rss'],
-  economy:       ['https://mainichi.jp/rss/etc/mainichi-flash.rss'],
-  technology:    ['https://mainichi.jp/rss/etc/mainichi-flash.rss'],
-  science:       ['https://mainichi.jp/rss/etc/mainichi-flash.rss'],
-  sports:        ['https://mainichi.jp/rss/etc/mainichi-flash.rss'],
-  entertainment: ['https://mainichi.jp/rss/etc/mainichi-flash.rss'],
-  health:        ['https://mainichi.jp/rss/etc/mainichi-flash.rss'],
-  business:      ['https://mainichi.jp/rss/etc/mainichi-flash.rss'],
-  gourmet:       ['https://mainichi.jp/rss/etc/mainichi-flash.rss'],
-  travel:        ['https://mainichi.jp/rss/etc/mainichi-flash.rss'],
-  local:         ['https://mainichi.jp/rss/etc/mainichi-flash.rss'],
-  disaster:      ['https://mainichi.jp/rss/etc/mainichi-flash.rss'],
-};
-// 2次: Yahoo Japan RSS（30〜60分更新）
+// 1次: Yahoo Japan RSS（カテゴリ別・30〜60分更新）
 const RSS_FEEDS = {
   general:       'https://news.yahoo.co.jp/rss/topics/top-picks.xml',
   domestic:      'https://news.yahoo.co.jp/rss/topics/domestic.xml',
@@ -1684,7 +1666,7 @@ const RSS_FEEDS = {
   local:         'https://news.yahoo.co.jp/rss/topics/local.xml',
   disaster:      'https://news.yahoo.co.jp/rss/topics/disaster.xml',
 };
-// 3次フォールバック: Google News RSS
+// 2次フォールバック: Google News RSS
 const RSS_FEEDS_FALLBACK = {
   general:       'https://news.google.com/rss?hl=ja&gl=JP&ceid=JP:ja',
   domestic:      'https://news.google.com/rss/headlines/section/topic/NATION?hl=ja&gl=JP&ceid=JP:ja',
@@ -1722,24 +1704,7 @@ async function tryRss2json(url) {
   }));
 }
 
-// 2次: 各メディア直接 RSS を並列取得してマージ・新着順ソート
-async function fetchMediaRSS(category) {
-  const urls = MEDIA_RSS[category];
-  if (!urls?.length) throw new Error('メディアRSS未設定');
-  const results = await Promise.allSettled(urls.map(u => tryRss2json(u)));
-  const merged = results
-    .filter(r => r.status === 'fulfilled')
-    .flatMap(r => r.value);
-  if (!merged.length) throw new Error('記事なし');
-  // 重複URL除去 → 新着順ソート
-  const seen = new Set();
-  return merged
-    .filter(a => { if (seen.has(a.url)) return false; seen.add(a.url); return true; })
-    .sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt))
-    .slice(0, 20);
-}
-
-// 2次/3次: Yahoo RSS → Google RSS
+// 1次/2次: Yahoo RSS → Google RSS
 async function fetchRSSNews(category) {
   const rssUrl = RSS_FEEDS[category];
   if (!rssUrl) throw new Error('RSS未設定');
@@ -1762,14 +1727,8 @@ async function fetchAndRenderNews(category) {
   }
   renderNewsSkeleton();
   try {
-    // フェッチチェーン: 1次 毎日新聞RSS → 2次 Yahoo → 3次 Google
-    let articles = [];
-
-    // 1次: 毎日新聞直接RSS（数分以内更新）
-    try { articles = await fetchMediaRSS(category); } catch {}
-
-    // 2次/3次: Yahoo → Google RSS
-    if (articles.length === 0) articles = await fetchRSSNews(category);
+    // フェッチチェーン: 1次 Yahoo RSS → 2次 Google RSS
+    const articles = await fetchRSSNews(category);
 
     if (articles.length > 0) {
       newsCache[category] = { ts: Date.now(), articles };
