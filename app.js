@@ -1653,7 +1653,18 @@ async function fetchGNews(category) {
   return articles;
 }
 
-// 1次: Yahoo Japan RSS（30〜60分更新・無料・APIキー不要）
+// 2次: 各メディア直接RSS（数分以内更新・無料・無制限）
+const MEDIA_RSS = {
+  general:       ['https://www.asahi.com/rss/asahi/newsheadlines.rdf','https://mainichi.jp/rss/etc/mainichi-flash.rss','https://www.sankei.com/news/rss/newsheadlines.xml'],
+  technology:    ['https://www.asahi.com/rss/asahi/digital.rdf','https://mainichi.jp/rss/etc/mainichi-flash.rss'],
+  science:       ['https://www.asahi.com/rss/asahi/science.rdf','https://mainichi.jp/rss/etc/mainichi-flash.rss'],
+  sports:        ['https://www.asahi.com/rss/asahi/sports.rdf','https://www.sankei.com/news/rss/newsheadlines.xml'],
+  entertainment: ['https://www.asahi.com/rss/asahi/entertainment.rdf','https://mainichi.jp/rss/etc/mainichi-flash.rss'],
+  health:        ['https://www.asahi.com/rss/asahi/health.rdf','https://mainichi.jp/rss/etc/mainichi-flash.rss'],
+  business:      ['https://www.asahi.com/rss/asahi/business.rdf','https://www.sankei.com/news/rss/newsheadlines.xml'],
+  disaster:      ['https://www.asahi.com/rss/asahi/national.rdf','https://www.sankei.com/news/rss/newsheadlines.xml'],
+};
+// 3次: Yahoo Japan RSS（30〜60分更新）
 const RSS_FEEDS = {
   general:       'https://news.yahoo.co.jp/rss/topics/top-picks.xml',
   technology:    'https://news.yahoo.co.jp/rss/topics/it.xml',
@@ -1664,7 +1675,7 @@ const RSS_FEEDS = {
   business:      'https://news.yahoo.co.jp/rss/topics/business.xml',
   disaster:      'https://news.yahoo.co.jp/rss/topics/disaster.xml',
 };
-// 2次フォールバック: Google News RSS（1〜4時間更新）
+// 4次フォールバック: Google News RSS
 const RSS_FEEDS_FALLBACK = {
   general:       'https://news.google.com/rss?hl=ja&gl=JP&ceid=JP:ja',
   technology:    'https://news.google.com/rss/headlines/section/topic/TECHNOLOGY?hl=ja&gl=JP&ceid=JP:ja',
@@ -1676,44 +1687,53 @@ const RSS_FEEDS_FALLBACK = {
   disaster:      'https://news.google.com/rss/search?q=%E7%81%BD%E5%AE%B3+OR+%E5%9C%B0%E9%9C%87+OR+%E5%8F%B0%E9%A2%A8+OR+%E6%B4%AA%E6%B0%B4&hl=ja&gl=JP&ceid=JP%3Aja',
 };
 
-async function fetchRSSNews(category) {
-  const now = Date.now();
-  if (newsCache[category] && (now - newsCache[category].ts) < CACHE_TTL) return newsCache[category].articles;
-  const rssUrl = RSS_FEEDS[category];
-  if (!rssUrl) throw new Error('RSS未設定');
-
-  // rss2json.com API: サーバーサイドで RSS を取得→ JSON 変換（CORS フリー）
-  async function tryRss2json(url) {
-    const apiUrl = 'https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent(url);
-    const res = await fetch(apiUrl, { signal: timeoutSignal(14000) });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data = await res.json();
-    if (data.status !== 'ok' || !data.items?.length) throw new Error('記事なし');
-    return data;
-  }
-
-  let data;
-  try {
-    data = await tryRss2json(rssUrl);
-  } catch {
-    const fallback = RSS_FEEDS_FALLBACK[category];
-    if (!fallback) throw new Error('記事が見つかりませんでした');
-    data = await tryRss2json(fallback);
-  }
-
-  const articles = data.items.slice(0, 20).map(item => ({
+// rss2json.com 経由で RSS を JSON に変換（CORS フリー）
+async function tryRss2json(url) {
+  const apiUrl = 'https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent(url);
+  const res = await fetch(apiUrl, { signal: timeoutSignal(12000) });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const data = await res.json();
+  if (data.status !== 'ok' || !data.items?.length) throw new Error('記事なし');
+  return data.items.map(item => ({
     title:       item.title || '',
     description: (item.description || '').replace(/<[^>]*>/g, '').trim(),
     url:         item.link || '',
     image:       item.thumbnail || item.enclosure?.link || '',
-    source:      item.author || item.source?.name || 'Yahoo ニュース',
+    source:      item.author || data.feed?.title || '',
     sourceIcon:  data.feed?.favicon || '',
     publishedAt: item.pubDate || '',
     lang:        'ja',
   }));
-  newsCache[category] = { ts: now, articles };
-  try { localStorage.setItem('sora_news_offline_' + category, JSON.stringify({ ts: now, articles })); } catch {}
-  return articles;
+}
+
+// 2次: 各メディア直接 RSS を並列取得してマージ・新着順ソート
+async function fetchMediaRSS(category) {
+  const urls = MEDIA_RSS[category];
+  if (!urls?.length) throw new Error('メディアRSS未設定');
+  const results = await Promise.allSettled(urls.map(u => tryRss2json(u)));
+  const merged = results
+    .filter(r => r.status === 'fulfilled')
+    .flatMap(r => r.value);
+  if (!merged.length) throw new Error('記事なし');
+  // 重複URL除去 → 新着順ソート
+  const seen = new Set();
+  return merged
+    .filter(a => { if (seen.has(a.url)) return false; seen.add(a.url); return true; })
+    .sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt))
+    .slice(0, 20);
+}
+
+// 3次/4次: Yahoo RSS → Google RSS
+async function fetchRSSNews(category) {
+  const rssUrl = RSS_FEEDS[category];
+  if (!rssUrl) throw new Error('RSS未設定');
+  try {
+    return await tryRss2json(rssUrl);
+  } catch {
+    const fallback = RSS_FEEDS_FALLBACK[category];
+    if (!fallback) throw new Error('記事が見つかりませんでした');
+    return await tryRss2json(fallback);
+  }
 }
 
 async function fetchAndRenderNews(category) {
@@ -1726,9 +1746,44 @@ async function fetchAndRenderNews(category) {
   }
   renderNewsSkeleton();
   try {
-    // フェッチチェーン: 1次 Yahoo RSS → 2次 Google RSS（fetchRSSNews内でフォールバック）
-    const articles = await fetchRSSNews(category);
-    if (articles.length > 0) { renderNewsCards(articles, label); updateNewsBadges(); return; }
+    // フェッチチェーン: 1次 WorldNewsAPI → 2次 各メディアRSS → 3次 Yahoo → 4次 Google
+    let articles = [];
+
+    // 1次: WorldNewsAPI（リアルタイム・chat-worker経由）
+    try {
+      if (CHAT_API_URL && CHAT_API_URL !== 'YOUR_CHAT_WORKER_URL') {
+        const res = await fetch(CHAT_API_URL + '/api/news?category=' + category, { signal: timeoutSignal(12000) });
+        if (res.ok) {
+          const data = await res.json();
+          if (!data.error && Array.isArray(data.articles) && data.articles.length > 0) {
+            articles = data.articles.map(item => ({
+              title:       item.title?.trim() || '',
+              description: item.description?.trim() || '',
+              url:         item.url || '',
+              image:       item.image || '',
+              source:      item.source?.name || 'WorldNews',
+              sourceIcon:  '',
+              publishedAt: item.publishedAt || '',
+              lang:        'ja',
+            }));
+          }
+        }
+      }
+    } catch {}
+
+    // 2次: 各メディア直接RSS（数分以内更新）
+    if (articles.length === 0) {
+      try { articles = await fetchMediaRSS(category); } catch {}
+    }
+
+    // 3次/4次: Yahoo → Google RSS
+    if (articles.length === 0) articles = await fetchRSSNews(category);
+
+    if (articles.length > 0) {
+      newsCache[category] = { ts: Date.now(), articles };
+      try { localStorage.setItem('sora_news_offline_' + category, JSON.stringify({ ts: Date.now(), articles })); } catch {}
+      renderNewsCards(articles, label); updateNewsBadges(); return;
+    }
     showNewsMessage('📭', '「' + label + '」の記事が見つかりませんでした', 'しばらく後にお試しください。');
   } catch(e) {
     // オフラインキャッシュを確認
