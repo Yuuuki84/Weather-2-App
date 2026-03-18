@@ -1,23 +1,11 @@
 // ===== Luna & Elma Worker =====
 // Cloudflare Workers バックエンド
-// Secrets: WORLDNEWS_API_KEY
+// Secrets: （現在なし）
 // AI バインディング (wrangler.toml [ai]): AI
 // 環境変数 (wrangler.toml vars): ALLOWED_ORIGIN
+// ニュースはクライアント側で 毎日新聞RSS → Yahoo RSS → Google RSS から直接取得
 
 const AI_MODEL = '@cf/meta/llama-3.1-8b-instruct';
-const NEWS_CACHE_TTL = 5 * 60; // 5分（秒）
-
-// WorldNewsAPI カテゴリ → 検索キーワード
-const WORLDNEWS_QUERY = {
-  general:       null, // top-news エンドポイント使用
-  technology:    'テクノロジー OR IT OR 人工知能 OR AI',
-  science:       '科学 OR 研究 OR 宇宙',
-  sports:        'スポーツ OR サッカー OR 野球 OR テニス',
-  entertainment: 'エンタメ OR 芸能 OR 映画 OR 音楽',
-  health:        '健康 OR 医療 OR 病気 OR 薬',
-  business:      'ビジネス OR 経済 OR 株 OR 企業',
-  disaster:      '災害 OR 地震 OR 台風 OR 洪水 OR 津波',
-};
 
 const SYSTEM_PROMPT =
   'あなたは「Luna & Elma」という天気・ニュースアプリの明るいAIアシスタントです。' +
@@ -49,11 +37,6 @@ export default {
       return new Response('OK', { status: 200 });
     }
 
-    // ニュース API
-    if (url.pathname === '/api/news' && request.method === 'GET') {
-      return handleNews(url, origin, env, ctx);
-    }
-
     // 要約 API
     if (url.pathname === '/api/summarize' && request.method === 'POST') {
       try {
@@ -83,65 +66,6 @@ export default {
     return jsonRes({ error: 'Not Found' }, 404, origin);
   },
 };
-
-// ===== WorldNewsAPI ニュース取得 =====
-async function handleNews(url, origin, env, ctx) {
-  const category = url.searchParams.get('category') || 'general';
-  const cache = caches.default;
-  const cacheKey = new Request(`https://luna-elma-cache.internal/news/wn/${category}`);
-
-  const cached = await cache.match(cacheKey);
-  if (cached) return jsonRes(await cached.json(), 200, origin);
-
-  const data = await fetchWorldNews(category, env.WORLDNEWS_API_KEY);
-  if (data.error) return jsonRes(data, 502, origin);
-
-  ctx.waitUntil(cache.put(cacheKey, new Response(JSON.stringify(data), {
-    headers: { 'Content-Type': 'application/json', 'Cache-Control': `max-age=${NEWS_CACHE_TTL}` },
-  })));
-  return jsonRes(data, 200, origin);
-}
-
-async function fetchWorldNews(category, apiKey) {
-  if (!apiKey) return { error: 'WORLDNEWS_API_KEY が未設定です' };
-  try {
-    const query = WORLDNEWS_QUERY[category];
-    let apiUrl;
-    if (!query) {
-      // general: top-news（日本語・日本）
-      apiUrl = `https://api.worldnewsapi.com/top-news?source-country=jp&language=ja&api-key=${apiKey}`;
-    } else {
-      apiUrl = `https://api.worldnewsapi.com/search-news?language=ja&text=${encodeURIComponent(query)}&sort=publish-time&sort-direction=DESC&number=20&api-key=${apiKey}`;
-    }
-    const res = await fetch(apiUrl);
-    if (!res.ok) {
-      const body = await res.text().catch(() => '');
-      return { error: `WorldNews HTTP ${res.status}: ${body.slice(0, 80)}` };
-    }
-    const json = await res.json();
-
-    // top-news と search-news でレスポンス形式が異なる
-    let rawItems = [];
-    if (json.top_news) {
-      rawItems = json.top_news.flatMap(g => g.news || []);
-    } else if (json.news) {
-      rawItems = json.news;
-    }
-    if (!rawItems.length) return { error: '記事なし' };
-
-    const articles = rawItems.slice(0, 20).map(item => ({
-      title:       item.title || '',
-      description: item.text ? item.text.slice(0, 200) : '',
-      url:         item.url || '',
-      image:       item.image || '',
-      publishedAt: item.publish_date || '',
-      source:      { name: item.source_url ? new URL(item.source_url).hostname.replace('www.', '') : 'WorldNews' },
-    }));
-    return { articles };
-  } catch (e) {
-    return { error: e.message || 'fetch失敗' };
-  }
-}
 
 // ===== Workers AI 要約 =====
 async function callSummarizeAI(title, description, ai) {
