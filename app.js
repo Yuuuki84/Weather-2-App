@@ -1653,18 +1653,18 @@ async function fetchGNews(category) {
   return articles;
 }
 
-// 2次: 各メディア直接RSS（数分以内更新・無料・無制限）
+// 1次: 毎日新聞直接RSS（数分以内更新・動作確認済み）
 const MEDIA_RSS = {
-  general:       ['https://www.asahi.com/rss/asahi/newsheadlines.rdf','https://mainichi.jp/rss/etc/mainichi-flash.rss','https://www.sankei.com/news/rss/newsheadlines.xml'],
-  technology:    ['https://www.asahi.com/rss/asahi/digital.rdf','https://mainichi.jp/rss/etc/mainichi-flash.rss'],
-  science:       ['https://www.asahi.com/rss/asahi/science.rdf','https://mainichi.jp/rss/etc/mainichi-flash.rss'],
-  sports:        ['https://www.asahi.com/rss/asahi/sports.rdf','https://www.sankei.com/news/rss/newsheadlines.xml'],
-  entertainment: ['https://www.asahi.com/rss/asahi/entertainment.rdf','https://mainichi.jp/rss/etc/mainichi-flash.rss'],
-  health:        ['https://www.asahi.com/rss/asahi/health.rdf','https://mainichi.jp/rss/etc/mainichi-flash.rss'],
-  business:      ['https://www.asahi.com/rss/asahi/business.rdf','https://www.sankei.com/news/rss/newsheadlines.xml'],
-  disaster:      ['https://www.asahi.com/rss/asahi/national.rdf','https://www.sankei.com/news/rss/newsheadlines.xml'],
+  general:       ['https://mainichi.jp/rss/etc/mainichi-flash.rss'],
+  technology:    ['https://mainichi.jp/rss/etc/mainichi-flash.rss'],
+  science:       ['https://mainichi.jp/rss/etc/mainichi-flash.rss'],
+  sports:        ['https://mainichi.jp/rss/etc/mainichi-flash.rss'],
+  entertainment: ['https://mainichi.jp/rss/etc/mainichi-flash.rss'],
+  health:        ['https://mainichi.jp/rss/etc/mainichi-flash.rss'],
+  business:      ['https://mainichi.jp/rss/etc/mainichi-flash.rss'],
+  disaster:      ['https://mainichi.jp/rss/etc/mainichi-flash.rss'],
 };
-// 3次: Yahoo Japan RSS（30〜60分更新）
+// 2次: Yahoo Japan RSS（30〜60分更新）
 const RSS_FEEDS = {
   general:       'https://news.yahoo.co.jp/rss/topics/top-picks.xml',
   technology:    'https://news.yahoo.co.jp/rss/topics/it.xml',
@@ -1675,7 +1675,7 @@ const RSS_FEEDS = {
   business:      'https://news.yahoo.co.jp/rss/topics/business.xml',
   disaster:      'https://news.yahoo.co.jp/rss/topics/disaster.xml',
 };
-// 4次フォールバック: Google News RSS
+// 3次フォールバック: Google News RSS
 const RSS_FEEDS_FALLBACK = {
   general:       'https://news.google.com/rss?hl=ja&gl=JP&ceid=JP:ja',
   technology:    'https://news.google.com/rss/headlines/section/topic/TECHNOLOGY?hl=ja&gl=JP&ceid=JP:ja',
@@ -1723,7 +1723,7 @@ async function fetchMediaRSS(category) {
     .slice(0, 20);
 }
 
-// 3次/4次: Yahoo RSS → Google RSS
+// 2次/3次: Yahoo RSS → Google RSS
 async function fetchRSSNews(category) {
   const rssUrl = RSS_FEEDS[category];
   if (!rssUrl) throw new Error('RSS未設定');
@@ -1746,37 +1746,13 @@ async function fetchAndRenderNews(category) {
   }
   renderNewsSkeleton();
   try {
-    // フェッチチェーン: 1次 WorldNewsAPI → 2次 各メディアRSS → 3次 Yahoo → 4次 Google
+    // フェッチチェーン: 1次 毎日新聞RSS → 2次 Yahoo → 3次 Google
     let articles = [];
 
-    // 1次: WorldNewsAPI（リアルタイム・chat-worker経由）
-    try {
-      if (CHAT_API_URL && CHAT_API_URL !== 'YOUR_CHAT_WORKER_URL') {
-        const res = await fetch(CHAT_API_URL + '/api/news?category=' + category, { signal: timeoutSignal(12000) });
-        if (res.ok) {
-          const data = await res.json();
-          if (!data.error && Array.isArray(data.articles) && data.articles.length > 0) {
-            articles = data.articles.map(item => ({
-              title:       item.title?.trim() || '',
-              description: item.description?.trim() || '',
-              url:         item.url || '',
-              image:       item.image || '',
-              source:      item.source?.name || 'WorldNews',
-              sourceIcon:  '',
-              publishedAt: item.publishedAt || '',
-              lang:        'ja',
-            }));
-          }
-        }
-      }
-    } catch {}
+    // 1次: 毎日新聞直接RSS（数分以内更新）
+    try { articles = await fetchMediaRSS(category); } catch {}
 
-    // 2次: 各メディア直接RSS（数分以内更新）
-    if (articles.length === 0) {
-      try { articles = await fetchMediaRSS(category); } catch {}
-    }
-
-    // 3次/4次: Yahoo → Google RSS
+    // 2次/3次: Yahoo → Google RSS
     if (articles.length === 0) articles = await fetchRSSNews(category);
 
     if (articles.length > 0) {
