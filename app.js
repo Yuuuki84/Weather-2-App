@@ -1609,15 +1609,10 @@ async function getWeatherByGeo() {
 // ===== ニュース（GNews API） =====
 
 const CATEGORY_LABEL = {
-  general:'トップ', technology:'テクノロジー', science:'サイエンス',
-  sports:'スポーツ', entertainment:'エンタメ', health:'ヘルス', business:'ビジネス',
-  disaster:'🚨 災害',
-};
-
-// GNews API カテゴリマッピング
-const GNEWS_CATEGORY = {
-  general: 'general', technology: 'technology', science: 'science',
-  sports: 'sports', entertainment: 'entertainment', health: 'health', business: 'business',
+  general:'トップ', domestic:'国内', world:'国際', politics:'政治', economy:'経済',
+  technology:'テクノロジー', science:'サイエンス', sports:'スポーツ',
+  entertainment:'エンタメ', health:'健康', business:'ビジネス',
+  gourmet:'グルメ', travel:'旅行', local:'地域', disaster:'🚨 災害',
 };
 
 const newsCache = {};
@@ -1656,34 +1651,55 @@ async function fetchGNews(category) {
 // 1次: 毎日新聞直接RSS（数分以内更新・動作確認済み）
 const MEDIA_RSS = {
   general:       ['https://mainichi.jp/rss/etc/mainichi-flash.rss'],
+  domestic:      ['https://mainichi.jp/rss/etc/mainichi-flash.rss'],
+  world:         ['https://mainichi.jp/rss/etc/mainichi-flash.rss'],
+  politics:      ['https://mainichi.jp/rss/etc/mainichi-flash.rss'],
+  economy:       ['https://mainichi.jp/rss/etc/mainichi-flash.rss'],
   technology:    ['https://mainichi.jp/rss/etc/mainichi-flash.rss'],
   science:       ['https://mainichi.jp/rss/etc/mainichi-flash.rss'],
   sports:        ['https://mainichi.jp/rss/etc/mainichi-flash.rss'],
   entertainment: ['https://mainichi.jp/rss/etc/mainichi-flash.rss'],
   health:        ['https://mainichi.jp/rss/etc/mainichi-flash.rss'],
   business:      ['https://mainichi.jp/rss/etc/mainichi-flash.rss'],
+  gourmet:       ['https://mainichi.jp/rss/etc/mainichi-flash.rss'],
+  travel:        ['https://mainichi.jp/rss/etc/mainichi-flash.rss'],
+  local:         ['https://mainichi.jp/rss/etc/mainichi-flash.rss'],
   disaster:      ['https://mainichi.jp/rss/etc/mainichi-flash.rss'],
 };
 // 2次: Yahoo Japan RSS（30〜60分更新）
 const RSS_FEEDS = {
   general:       'https://news.yahoo.co.jp/rss/topics/top-picks.xml',
+  domestic:      'https://news.yahoo.co.jp/rss/topics/domestic.xml',
+  world:         'https://news.yahoo.co.jp/rss/topics/world.xml',
+  politics:      'https://news.yahoo.co.jp/rss/topics/politics.xml',
+  economy:       'https://news.yahoo.co.jp/rss/topics/economy.xml',
   technology:    'https://news.yahoo.co.jp/rss/topics/it.xml',
   science:       'https://news.yahoo.co.jp/rss/topics/science.xml',
   sports:        'https://news.yahoo.co.jp/rss/topics/sports.xml',
   entertainment: 'https://news.yahoo.co.jp/rss/topics/entertainment.xml',
   health:        'https://news.yahoo.co.jp/rss/topics/health.xml',
   business:      'https://news.yahoo.co.jp/rss/topics/business.xml',
+  gourmet:       'https://news.yahoo.co.jp/rss/topics/gourmet.xml',
+  travel:        'https://news.yahoo.co.jp/rss/topics/travel.xml',
+  local:         'https://news.yahoo.co.jp/rss/topics/local.xml',
   disaster:      'https://news.yahoo.co.jp/rss/topics/disaster.xml',
 };
 // 3次フォールバック: Google News RSS
 const RSS_FEEDS_FALLBACK = {
   general:       'https://news.google.com/rss?hl=ja&gl=JP&ceid=JP:ja',
+  domestic:      'https://news.google.com/rss/headlines/section/topic/NATION?hl=ja&gl=JP&ceid=JP:ja',
+  world:         'https://news.google.com/rss/headlines/section/topic/WORLD?hl=ja&gl=JP&ceid=JP:ja',
+  politics:      'https://news.google.com/rss/search?q=%E6%94%BF%E6%B2%BB+OR+%E5%9B%BD%E4%BC%9A&hl=ja&gl=JP&ceid=JP:ja',
+  economy:       'https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=ja&gl=JP&ceid=JP:ja',
   technology:    'https://news.google.com/rss/headlines/section/topic/TECHNOLOGY?hl=ja&gl=JP&ceid=JP:ja',
   science:       'https://news.google.com/rss/headlines/section/topic/SCIENCE?hl=ja&gl=JP&ceid=JP:ja',
   sports:        'https://news.google.com/rss/headlines/section/topic/SPORTS?hl=ja&gl=JP&ceid=JP:ja',
   entertainment: 'https://news.google.com/rss/headlines/section/topic/ENTERTAINMENT?hl=ja&gl=JP&ceid=JP:ja',
   health:        'https://news.google.com/rss/headlines/section/topic/HEALTH?hl=ja&gl=JP&ceid=JP:ja',
   business:      'https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=ja&gl=JP&ceid=JP:ja',
+  gourmet:       'https://news.google.com/rss/search?q=%E3%82%B0%E3%83%AB%E3%83%A1+OR+%E9%A3%B2%E9%A3%9F%E5%BA%97&hl=ja&gl=JP&ceid=JP:ja',
+  travel:        'https://news.google.com/rss/search?q=%E6%97%85%E8%A1%8C+OR+%E8%A6%B3%E5%85%89&hl=ja&gl=JP&ceid=JP:ja',
+  local:         'https://news.google.com/rss/headlines/section/topic/NATION?hl=ja&gl=JP&ceid=JP:ja',
   disaster:      'https://news.google.com/rss/search?q=%E7%81%BD%E5%AE%B3+OR+%E5%9C%B0%E9%9C%87+OR+%E5%8F%B0%E9%A2%A8+OR+%E6%B4%AA%E6%B0%B4&hl=ja&gl=JP&ceid=JP%3Aja',
 };
 
