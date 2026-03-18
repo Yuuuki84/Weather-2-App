@@ -53,7 +53,7 @@
     }
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html { scroll-behavior: smooth; }
+    html { scroll-behavior: smooth; overflow-x: hidden; }
 
     body {
       font-family: var(--font);
@@ -166,7 +166,16 @@
     }
     .logo span { font-weight: 300; font-family: var(--font); -webkit-text-fill-color: var(--text2); font-size: 14px; margin-left: 8px; }
 
-    .header-actions { display: flex; gap: 10px; align-items: center; }
+    .header-actions { display: flex; gap: 10px; align-items: center; flex-shrink: 0; }
+    .header { gap: 8px; }
+    .logo { min-width: 0; white-space: nowrap; }
+    @media (max-width: 480px) {
+      .logo { font-size: 20px; }
+      .logo span { display: none; }
+      .header-actions { gap: 6px; }
+      .btn.icon-btn { padding: 8px; font-size: 14px !important; }
+      #unit-select { font-size: 12px; padding: 6px 4px; max-width: 70px; }
+    }
 
     /* ===== GLASS CARD ===== */
     .card {
@@ -2007,7 +2016,7 @@
         <li><strong>設定・履歴</strong> — テーマ、単位、検索履歴、お気に入りは <code>localStorage</code> に保存されます。</li>
         <li><strong>ニュース既読・ブックマーク</strong> — <code>localStorage</code> に保存。端末外には送信されません。</li>
         <li><strong>要約キャッシュ</strong> — AI が生成した要約テキストを最大7日間 <code>localStorage</code> に保存します。</li>
-        <li><strong>アカウント情報</strong> — ログイン時は Supabase（EU リージョン）にメールアドレスと設定が保存されます。</li>
+        <li><strong>アカウント情報</strong> — ログイン時は Supabase（Northeast Asia / Tokyo リージョン）にメールアドレスと設定が保存されます。</li>
         <li><strong>チャット履歴</strong> — ブラウザの <code>localStorage</code> のみに保存。サーバーには送信されません。</li>
       </ul>
       <p>第三者への個人情報販売は行いません。詳細はお問い合わせください。</p>
