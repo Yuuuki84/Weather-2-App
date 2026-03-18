@@ -1726,36 +1726,9 @@ async function fetchAndRenderNews(category) {
   }
   renderNewsSkeleton();
   try {
-    // フェッチチェーン: 1次 Currents API → 2次 Yahoo RSS → 3次 Google RSS
-    let articles = [];
-    try {
-      // 1次: Currents API（リアルタイム・chat-worker経由）
-      if (CHAT_API_URL && CHAT_API_URL !== 'YOUR_CHAT_WORKER_URL') {
-        const res = await fetch(CHAT_API_URL + '/api/news?category=' + category, { signal: timeoutSignal(15000) });
-        if (res.ok) {
-          const data = await res.json();
-          if (!data.error && Array.isArray(data.articles) && data.articles.length > 0) {
-            articles = data.articles.map(item => ({
-              title:       item.title?.trim() || '',
-              description: item.description?.trim() || '',
-              url:         item.url || '',
-              image:       item.image || '',
-              source:      item.source?.name || 'Currents',
-              sourceIcon:  '',
-              publishedAt: item.publishedAt || '',
-              lang:        'ja',
-            }));
-          }
-        }
-      }
-    } catch {}
-    // 2次以降: Yahoo RSS → Google RSS（fetchRSSNews内でフォールバック）
-    if (articles.length === 0) articles = await fetchRSSNews(category);
-    if (articles.length > 0) {
-      newsCache[category] = { ts: Date.now(), articles };
-      try { localStorage.setItem('sora_news_offline_' + category, JSON.stringify({ ts: Date.now(), articles })); } catch {}
-      renderNewsCards(articles, label); updateNewsBadges(); return;
-    }
+    // フェッチチェーン: 1次 Yahoo RSS → 2次 Google RSS（fetchRSSNews内でフォールバック）
+    const articles = await fetchRSSNews(category);
+    if (articles.length > 0) { renderNewsCards(articles, label); updateNewsBadges(); return; }
     showNewsMessage('📭', '「' + label + '」の記事が見つかりませんでした', 'しばらく後にお試しください。');
   } catch(e) {
     // オフラインキャッシュを確認
