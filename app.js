@@ -1820,15 +1820,15 @@ function renderNewsCards(articles, categoryLabel) {
       if (!batch.length) { observer.disconnect(); sentinel.remove(); return; }
       const grid = document.getElementById('news-grid-main');
       if (grid) {
-        const frag = document.createDocumentFragment();
+        const tempWrap = document.createElement('div');
         batch.forEach(a => {
           const tmp = document.createElement('div');
           tmp.innerHTML = newsCardHTML(a, false, categoryLabel, readSet);
           const card = tmp.firstElementChild;
-          if (card) frag.appendChild(card);
+          if (card) tempWrap.appendChild(card);
         });
-        grid.appendChild(frag);
-        attachNewsListeners(grid);
+        attachNewsListeners(tempWrap);
+        while (tempWrap.firstChild) grid.appendChild(tempWrap.firstChild);
       }
       if (!queue.length) { observer.disconnect(); sentinel.remove(); }
     }, { rootMargin: '200px' });
