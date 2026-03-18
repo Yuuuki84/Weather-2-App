@@ -1618,8 +1618,6 @@ const CATEGORY_LABEL = {
 const newsCache = {};
 const CACHE_TTL = 15 * 60 * 1000;
 
-// ニュースソース切り替え（yahoo / google）
-let newsSource = localStorage.getItem('sora_news_source') || 'yahoo';
 
 async function fetchGNews(category) {
   const now = Date.now();
@@ -1707,17 +1705,14 @@ async function tryRss2json(url) {
   }));
 }
 
-// Yahoo / Google ソース切り替え対応フェッチ
+// RSS フェッチ: Yahoo RSS → Google RSS フォールバック
 async function fetchRSSNews(category) {
-  // ソース選択に応じて1次・2次を入れ替え
-  const primary   = newsSource === 'google' ? RSS_FEEDS_FALLBACK : RSS_FEEDS;
-  const secondary = newsSource === 'google' ? RSS_FEEDS          : RSS_FEEDS_FALLBACK;
-  const primaryUrl = primary[category];
+  const primaryUrl = RSS_FEEDS[category];
   if (!primaryUrl) throw new Error('RSS未設定');
   try {
     return await tryRss2json(primaryUrl);
   } catch {
-    const fallbackUrl = secondary[category];
+    const fallbackUrl = RSS_FEEDS_FALLBACK[category];
     if (!fallbackUrl) throw new Error('記事が見つかりませんでした');
     return await tryRss2json(fallbackUrl);
   }
@@ -2205,20 +2200,6 @@ newsTabs.querySelectorAll('.news-tab').forEach(tab => {
   });
 });
 
-// ニュースソーストグル（Yahoo / Google）
-function applyNewsSource(src) {
-  newsSource = src;
-  localStorage.setItem('sora_news_source', src);
-  document.getElementById('source-yahoo')?.classList.toggle('active', src === 'yahoo');
-  document.getElementById('source-google')?.classList.toggle('active', src === 'google');
-  // キャッシュクリアして再取得
-  Object.keys(newsCache).forEach(k => delete newsCache[k]);
-  fetchAndRenderNews(currentCategory);
-}
-document.getElementById('source-yahoo')?.addEventListener('click', () => applyNewsSource('yahoo'));
-document.getElementById('source-google')?.addEventListener('click', () => applyNewsSource('google'));
-// 初期状態を反映
-applyNewsSource(newsSource);
 
 // 雨バナー閉じるボタン
 document.getElementById('rain-banner-close')?.addEventListener('click', () => {
