@@ -1709,18 +1709,10 @@ async function tryRss2json(url) {
 
 // Yahoo / Google ソース切り替え対応フェッチ
 async function fetchRSSNews(category) {
-  // ソース選択に応じて1次・2次を入れ替え
-  const primary   = newsSource === 'google' ? RSS_FEEDS_FALLBACK : RSS_FEEDS;
-  const secondary = newsSource === 'google' ? RSS_FEEDS          : RSS_FEEDS_FALLBACK;
-  const primaryUrl = primary[category];
-  if (!primaryUrl) throw new Error('RSS未設定');
-  try {
-    return await tryRss2json(primaryUrl);
-  } catch {
-    const fallbackUrl = secondary[category];
-    if (!fallbackUrl) throw new Error('記事が見つかりませんでした');
-    return await tryRss2json(fallbackUrl);
-  }
+  const feeds = newsSource === 'google' ? RSS_FEEDS_FALLBACK : RSS_FEEDS;
+  const url = feeds[category];
+  if (!url) throw new Error('RSS未設定');
+  return await tryRss2json(url);
 }
 
 async function fetchAndRenderNews(category) {
@@ -2217,8 +2209,9 @@ function applyNewsSource(src) {
 }
 document.getElementById('source-yahoo')?.addEventListener('click', () => applyNewsSource('yahoo'));
 document.getElementById('source-google')?.addEventListener('click', () => applyNewsSource('google'));
-// 初期状態を反映
-applyNewsSource(newsSource);
+// 初期状態をUIのみ反映（fetchは初回ロード時に別途行うため重複させない）
+document.getElementById('source-yahoo')?.classList.toggle('active', newsSource === 'yahoo');
+document.getElementById('source-google')?.classList.toggle('active', newsSource === 'google');
 
 // 雨バナー閉じるボタン
 document.getElementById('rain-banner-close')?.addEventListener('click', () => {
