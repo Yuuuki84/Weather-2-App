@@ -1583,8 +1583,6 @@ async function getWeatherByCity(cityRaw) {
   showWeatherSkeleton();
   setLoading(true, '都市を検索しています...');
   try {
-    let lat, lon;
-
     // オートコンプリートで lat/lon がキャッシュされている場合はスキップ
     let lat, lon, geoName, geoCountry;
     if (_cachedGeo && _cachedGeo.name === city) {
@@ -1605,9 +1603,7 @@ async function getWeatherByCity(cityRaw) {
     setLoading(true, '天気データを取得しています...');
     const w = await fetchWeatherOpenMeteo(lat, lon, unit, geoName, geoCountry);
     if (!w) { showError('天気情報の取得に失敗しました。'); return; }
-    {
-      renderWeather(w, unit);
-    }
+    renderWeather(w, unit);
     startAutoRefresh();
     saveHistory(city);
     setShareLink(city);
