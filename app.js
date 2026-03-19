@@ -274,11 +274,20 @@ function renderFavorites() {
   section.style.display = '';
   box.innerHTML = '';
   favs.forEach(name => {
+    const wrap = document.createElement('div');
+    wrap.className = 'chip-wrap';
     const b = document.createElement('button');
     b.className = 'chip fav-chip';
     b.textContent = '⭐ ' + name;
     b.addEventListener('click', () => { cityInput.value = name; getWeatherByCity(name); });
-    box.appendChild(b);
+    const del = document.createElement('button');
+    del.className = 'chip-del';
+    del.textContent = '×';
+    del.title = 'お気に入りから削除';
+    del.addEventListener('click', e => { e.stopPropagation(); toggleFavorite(name); });
+    wrap.appendChild(b);
+    wrap.appendChild(del);
+    box.appendChild(wrap);
   });
   renderFavWeatherDashboard();
 }
