@@ -461,7 +461,7 @@ async function fetchAndRenderForecast(lat, lon, unit) {
     const daily    = r.data.daily;
     const nowSec   = Date.now() / 1000;
 
-    // 3時間間隔に間引いて OWM 互換リストを作成（8件 = 24h）
+    // 3時間間隔に間引いて OWM 互換リストを作成（現在〜48h）
     const hourlyList = hourly.time
       .map((t, i) => ({
         dt:      Math.floor(new Date(t).getTime() / 1000),
@@ -470,9 +470,9 @@ async function fetchAndRenderForecast(lat, lon, unit) {
         pop:     (hourly.precipitation_probability[i] || 0) / 100,
         wind:    { speed: hourly.wind_speed_10m[i] },
       }))
-      .filter(item => item.dt >= nowSec - 1800 && new Date(hourly.time[0]).getMinutes() === new Date(hourly.time[0]).getMinutes() % 3 === 0)
-      .filter((_, idx) => idx % 3 === 0) // 3時間間隔
-      .slice(0, 40);
+      .filter(item => item.dt >= nowSec - 1800) // 現在時刻以降のみ
+      .filter((_, idx) => idx % 3 === 0)        // 3時間間隔
+      .slice(0, 16);                             // 最大48h
 
     const WDAY = ['日','月','火','水','木','金','土'];
     const dailyList = daily.time.map((t, i) => {
@@ -681,21 +681,21 @@ function initOrUpdateMap(lat, lon) {
   section.style.display = 'block';
 
   if (!leafletMap) {
-    leafletMap = L.map('weather-map', { zoomControl: true }).setView([lat, lon], 8);
+    leafletMap = L.map('weather-map', { zoomControl: true }).setView([lat, lon], 7);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
       maxZoom: 18,
     }).addTo(leafletMap);
-    // RainViewer 降水レーダー
+    // RainViewer 降水レーダー（対応ズーム 0–12）
     getRainViewerTimestamp().then(ts => {
       if (!ts) return;
       mapOverlayLayer = L.tileLayer(
-        'https://tilecache.rainviewer.com/v2/radar/' + ts + '/256/{z}/{x}/{y}/4/1_1.png',
-        { opacity: 0.65, attribution: '© RainViewer' }
+        'https://tilecache.rainviewer.com/v2/radar/' + ts + '/512/{z}/{x}/{y}/2/1_1.png',
+        { opacity: 0.6, attribution: '© RainViewer', minZoom: 0, maxZoom: 12 }
       ).addTo(leafletMap);
     });
   } else {
-    leafletMap.setView([lat, lon], 8);
+    leafletMap.setView([lat, lon], 7);
   }
 
   if (mapMarker) { leafletMap.removeLayer(mapMarker); }
@@ -703,9 +703,6 @@ function initOrUpdateMap(lat, lon) {
   setTimeout(() => leafletMap.invalidateSize(), 150);
 }
 
-function setMapLayer(layerName) {
-  // RainViewer は降水レーダーのみのため、レイヤー切り替えは無効
-}
 
 // ===== 天気アラート通知 =====
 async function requestNotificationPermission() {
@@ -1575,7 +1572,9 @@ function dismissWarningBanner() {
 function buildGeoQuery(city) {
   if (city.includes(',')) return city;
   if (/[\u3000-\u9fff\uff00-\uffef\u3040-\u30ff]/.test(city)) {
-    return (JP_CITY_ROMAJI[city] || city) + ',JP';
+    // 市・区・町・村・都・道・府・県 を除去してからロマジ変換を試みる
+    const stripped = city.replace(/[市区町村都道府県]$/, '');
+    return (JP_CITY_ROMAJI[stripped] || JP_CITY_ROMAJI[city] || stripped) + ',JP';
   }
   return city;
 }
@@ -1605,6 +1604,10 @@ async function getWeatherByCity(cityRaw) {
         showError('「' + city + '」は見つかりませんでした。別の都市名をお試しください。'); return;
       }
       ({ lat, lon, name: geoName, country: geoCountry } = geoResults[0]);
+      // 日本語入力の場合は元の入力（サフィックス除去済み）を表示名として優先する
+      if (/[\u3000-\u9fff\uff00-\uffef\u3040-\u30ff]/.test(city)) {
+        geoName = city.replace(/[市区町村都道府県]$/, '');
+      }
     }
 
     lastCoords = { lat, lon };
@@ -2329,14 +2332,6 @@ document.getElementById('notif-btn').addEventListener('click', async () => {
     btn.title = '天気アラート通知をONにする';
     if (sbCurrentUser()) sbSaveSettings({ notifications_enabled: 0 });
   }
-});
-// マップレイヤーボタン
-document.getElementById('map-layer-btns')?.querySelectorAll('.map-layer-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.getElementById('map-layer-btns').querySelectorAll('.map-layer-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    setMapLayer(btn.dataset.layer);
-  });
 });
 
 // ===== 自動リロード =====
