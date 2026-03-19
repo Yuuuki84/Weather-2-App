@@ -384,8 +384,16 @@ const OM_WMO_ICON = {
 
 // ジオコーディング（都市名 → 緯度経度）
 async function geocodeOpenMeteo(query) {
-  const url = 'https://geocoding-api.open-meteo.com/v1/search?name=' +
-    encodeURIComponent(query) + '&count=5&language=ja&format=json';
+  // OWM 形式の ",JP" サフィックスを除去し、日本かどうか判定
+  const isJP = /,JP$/i.test(query);
+  let name = query.replace(/,JP$/i, '').trim();
+  // 市・区・町・村 サフィックスを除去（Open-Meteo は都市名のみで検索）
+  name = name.replace(/[市区町村]$/, '').trim();
+
+  let url = 'https://geocoding-api.open-meteo.com/v1/search?name=' +
+    encodeURIComponent(name) + '&count=5&language=ja&format=json';
+  if (isJP) url += '&country_id=JP'; // 日本都市は JP に絞る
+
   const r = await fetchJson(url, 10000);
   if (!r.ok || !r.data?.results?.length) return [];
   return r.data.results.map(d => ({
