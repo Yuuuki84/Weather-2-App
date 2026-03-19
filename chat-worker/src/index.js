@@ -5,7 +5,7 @@
 // 環境変数 (wrangler.toml vars): ALLOWED_ORIGIN
 // ニュースはクライアント側で 毎日新聞RSS → Yahoo RSS → Google RSS から直接取得
 
-const AI_MODEL = '@cf/qwen/qwen1.5-14b-chat-awq';
+const AI_MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
 
 const SYSTEM_PROMPT =
   'あなたは「Luna & Elma」という天気・ニュースアプリのAIアシスタントです。' +
