@@ -1,6 +1,6 @@
 // ===================================================
 //  Luna & Elma 天気 & ニュースアプリ  —  app.js
-//  天気: OpenWeatherMap  |  ニュース: Yahoo Japan RSS + rss2json  |  犬の写真: Dog CEO API
+//  天気: Open-Meteo（無料・APIキー不要）  |  ニュース: Yahoo Japan RSS + rss2json  |  犬の写真: Dog CEO API
 // ===================================================
 
 // ===== APIキー =====
@@ -288,39 +288,36 @@ async function renderFavWeatherDashboard() {
   const section = document.getElementById('fav-weather-section');
   const grid    = document.getElementById('fav-weather-grid');
   if (!section || !grid) return;
-  if (!favs.length || typeof WEATHER_API_KEY === 'undefined' || !WEATHER_API_KEY) {
-    section.style.display = 'none';
-    return;
-  }
+  if (!favs.length) { section.style.display = 'none'; return; }
   section.style.display = '';
-  // スケルトン表示
   grid.innerHTML = favs.map(() => '<div class="fav-weather-card skeleton"></div>').join('');
 
-  const results = await Promise.all(favs.map(city =>
-    fetchJson(
-      'https://api.openweathermap.org/data/2.5/weather?q=' + encodeURIComponent(buildGeoQuery(city)) +
-      '&appid=' + WEATHER_API_KEY + '&units=metric&lang=ja'
-    ).catch(() => ({ ok: false }))
-  ));
+  const results = await Promise.all(favs.map(async city => {
+    try {
+      const geoResults = await geocodeOpenMeteo(buildGeoQuery(city));
+      if (!geoResults.length) return null;
+      const { lat, lon, name, country } = geoResults[0];
+      return await fetchWeatherOpenMeteo(lat, lon, 'metric', name, country);
+    } catch { return null; }
+  }));
 
   grid.innerHTML = '';
-  results.forEach((r, i) => {
+  results.forEach((d, i) => {
     const card = document.createElement('div');
     card.className = 'fav-weather-card';
-    if (!r.ok || !r.data) {
+    if (!d) {
       card.innerHTML =
-        '<div class="fwc-city">' + favs[i] + '</div>' +
+        '<div class="fwc-city">' + escHtml(favs[i]) + '</div>' +
         '<div class="fwc-err">取得失敗</div>';
     } else {
-      const d    = r.data;
       const icon = d.weather?.[0]?.icon || '01d';
       const temp = Math.round(d.main?.temp ?? 0);
       const desc = d.weather?.[0]?.description ?? '';
       card.innerHTML =
-        '<div class="fwc-city">' + (d.name || favs[i]) + '</div>' +
-        '<img class="fwc-icon" src="https://openweathermap.org/img/wn/' + icon + '@2x.png" alt="' + desc + '" loading="lazy">' +
+        '<div class="fwc-city">' + escHtml(d.name || favs[i]) + '</div>' +
+        '<img class="fwc-icon" src="https://openweathermap.org/img/wn/' + icon + '@2x.png" alt="' + escHtml(desc) + '" loading="lazy">' +
         '<div class="fwc-temp">' + temp + '°</div>' +
-        '<div class="fwc-desc">' + desc + '</div>';
+        '<div class="fwc-desc">' + escHtml(desc) + '</div>';
     }
     card.addEventListener('click', () => { cityInput.value = favs[i]; getWeatherByCity(favs[i]); });
     grid.appendChild(card);
@@ -353,21 +350,24 @@ async function fetchAndRenderAQI(lat, lon) {
   if (!card) return;
   try {
     const r = await fetchJson(
-      'https://api.openweathermap.org/data/2.5/air_pollution?lat=' + lat + '&lon=' + lon + '&appid=' + WEATHER_API_KEY,
+      'https://air-quality-api.open-meteo.com/v1/air-quality?latitude=' + lat + '&longitude=' + lon +
+      '&current=european_aqi,pm2_5',
       10000
     );
-    if (!r.ok || !r.data?.list?.length) { card.style.display = 'none'; return; }
-    const aqi = r.data.list[0].main.aqi; // 1-5
-    const components = r.data.list[0].components;
+    if (!r.ok || r.data?.current?.european_aqi == null) { card.style.display = 'none'; return; }
+    const eaqi = r.data.current.european_aqi;
+    const pm25 = r.data.current.pm2_5;
+    // European AQI (0-100+) → 1-5スケール
+    const aqi = eaqi <= 20 ? 1 : eaqi <= 40 ? 2 : eaqi <= 60 ? 3 : eaqi <= 80 ? 4 : 5;
     valEl.textContent = aqi;
     valEl.className = 'kv-value ' + (AQI_CLASSES[aqi] || '');
     lblEl.textContent = (AQI_LABELS[aqi] || '—') +
-      (components?.pm2_5 != null ? '  PM2.5: ' + components.pm2_5.toFixed(1) + ' μg/m³' : '');
+      (pm25 != null ? '  PM2.5: ' + pm25.toFixed(1) + ' μg/m³' : '');
     card.style.display = '';
   } catch { card.style.display = 'none'; }
 }
 
-// ===== Open-Meteo フォールバック天気プロバイダー =====
+// ===== Open-Meteo 天気プロバイダー =====
 const OM_WMO_MAP = {
   0:'晴れ',1:'おおむね晴れ',2:'一部曇り',3:'曇り',
   45:'霧',48:'着氷性の霧',51:'霧雨(弱)',53:'霧雨',55:'霧雨(強)',
@@ -382,49 +382,110 @@ const OM_WMO_ICON = {
   95:'11d',96:'11d',99:'11d'
 };
 
-async function fetchWeatherOpenMeteo(lat, lon, unit) {
-  try {
-    const tempUnit = unit === 'imperial' ? 'fahrenheit' : 'celsius';
-    const url = 'https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lon +
-      '&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,surface_pressure,wind_speed_10m,wind_direction_10m' +
-      '&temperature_unit=' + tempUnit + '&wind_speed_unit=ms&timezone=auto';
-    const r = await fetchJson(url, 12000);
-    if (!r.ok || !r.data?.current) return null;
-    const c = r.data.current;
-    const wmo = c.weather_code ?? 0;
-    return {
-      name: '(フォールバック)',
-      sys: { country: '', sunrise: null, sunset: null },
-      coord: { lat, lon },
-      weather: [{ description: OM_WMO_MAP[wmo] || '—', icon: OM_WMO_ICON[wmo] || '01d' }],
-      main: {
-        temp: c.temperature_2m, feels_like: c.apparent_temperature,
-        temp_min: c.temperature_2m, temp_max: c.temperature_2m,
-        humidity: c.relative_humidity_2m, pressure: c.surface_pressure
-      },
-      wind: { speed: c.wind_speed_10m, deg: c.wind_direction_10m },
-      rain: c.precipitation > 0 ? { '1h': c.precipitation } : undefined,
-      snow: undefined,
-      clouds: { all: 0 },
-      dt: Math.floor(Date.now() / 1000),
-      timezone: 0,
-      _isFallback: true
-    };
-  } catch { return null; }
+// ジオコーディング（都市名 → 緯度経度）
+async function geocodeOpenMeteo(query) {
+  const url = 'https://geocoding-api.open-meteo.com/v1/search?name=' +
+    encodeURIComponent(query) + '&count=5&language=ja&format=json';
+  const r = await fetchJson(url, 10000);
+  if (!r.ok || !r.data?.results?.length) return [];
+  return r.data.results.map(d => ({
+    lat: d.latitude,
+    lon: d.longitude,
+    name: d.name,
+    country: d.country_code || '',
+    state: d.admin1 || '',
+    displayName: d.name,
+  }));
+}
+
+async function fetchWeatherOpenMeteo(lat, lon, unit, cityName, countryCode) {
+  const tempUnit = unit === 'imperial' ? 'fahrenheit' : 'celsius';
+  const url = 'https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lon +
+    '&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,surface_pressure,wind_speed_10m,wind_direction_10m,is_day,visibility' +
+    '&daily=sunrise,sunset,temperature_2m_max,temperature_2m_min' +
+    '&temperature_unit=' + tempUnit + '&wind_speed_unit=ms&timezone=auto&forecast_days=1';
+  const r = await fetchJson(url, 12000);
+  if (!r.ok || !r.data?.current) return null;
+  const c     = r.data.current;
+  const daily = r.data.daily;
+  const wmo   = c.weather_code ?? 0;
+  const isDay = c.is_day !== 0;
+  const iconBase = OM_WMO_ICON[wmo] || '01d';
+  const icon     = isDay ? iconBase : iconBase.replace('d', 'n');
+  const sunriseTs = daily?.sunrise?.[0] ? Math.floor(new Date(daily.sunrise[0]).getTime() / 1000) : null;
+  const sunsetTs  = daily?.sunset?.[0]  ? Math.floor(new Date(daily.sunset[0]).getTime()  / 1000) : null;
+  return {
+    name: cityName || '—',
+    sys: { country: countryCode || '', sunrise: sunriseTs, sunset: sunsetTs },
+    coord: { lat, lon },
+    weather: [{ description: OM_WMO_MAP[wmo] || '—', icon }],
+    main: {
+      temp:       c.temperature_2m,
+      feels_like: c.apparent_temperature,
+      temp_min:   daily?.temperature_2m_min?.[0] ?? c.temperature_2m,
+      temp_max:   daily?.temperature_2m_max?.[0] ?? c.temperature_2m,
+      humidity:   c.relative_humidity_2m,
+      pressure:   c.surface_pressure,
+    },
+    wind:       { speed: c.wind_speed_10m, deg: c.wind_direction_10m },
+    rain:       c.precipitation > 0 ? { '1h': c.precipitation } : undefined,
+    snow:       undefined,
+    clouds:     { all: 0 },
+    visibility: c.visibility != null ? Math.round(c.visibility) : null,
+    dt:         Math.floor(new Date(c.time).getTime() / 1000),
+    timezone:   r.data.utc_offset_seconds ?? 0,
+  };
 }
 
 // ===== 予報（24h・週間） =====
 async function fetchAndRenderForecast(lat, lon, unit) {
   try {
-    const r = await fetchJson(
-      'https://api.openweathermap.org/data/2.5/forecast?lat=' + lat + '&lon=' + lon +
-      '&appid=' + WEATHER_API_KEY + '&units=' + unit + '&lang=ja&cnt=40'
-    );
-    if (!r.ok || !r.data?.list) return;
-    renderHourlyForecast(r.data, unit);
-    renderWeeklyForecast(r.data, unit);
-    renderTempChart(r.data, unit);
-    checkRainBanner(r.data);
+    const tempUnit = unit === 'imperial' ? 'fahrenheit' : 'celsius';
+    const url = 'https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lon +
+      '&hourly=temperature_2m,precipitation_probability,weather_code,wind_speed_10m' +
+      '&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max' +
+      '&temperature_unit=' + tempUnit + '&wind_speed_unit=ms&timezone=auto&forecast_days=7';
+    const r = await fetchJson(url, 12000);
+    if (!r.ok || !r.data?.hourly || !r.data?.daily) return;
+
+    const tzOffset = r.data.utc_offset_seconds ?? 0;
+    const hourly   = r.data.hourly;
+    const daily    = r.data.daily;
+    const nowSec   = Date.now() / 1000;
+
+    // 3時間間隔に間引いて OWM 互換リストを作成（8件 = 24h）
+    const hourlyList = hourly.time
+      .map((t, i) => ({
+        dt:      Math.floor(new Date(t).getTime() / 1000),
+        main:    { temp: hourly.temperature_2m[i] },
+        weather: [{ icon: OM_WMO_ICON[hourly.weather_code[i]] || '01d', description: OM_WMO_MAP[hourly.weather_code[i]] || '—' }],
+        pop:     (hourly.precipitation_probability[i] || 0) / 100,
+        wind:    { speed: hourly.wind_speed_10m[i] },
+      }))
+      .filter(item => item.dt >= nowSec - 1800 && new Date(hourly.time[0]).getMinutes() === new Date(hourly.time[0]).getMinutes() % 3 === 0)
+      .filter((_, idx) => idx % 3 === 0) // 3時間間隔
+      .slice(0, 40);
+
+    const WDAY = ['日','月','火','水','木','金','土'];
+    const dailyList = daily.time.map((t, i) => {
+      const d = new Date(t + 'T00:00:00Z');
+      const wmo = daily.weather_code[i];
+      return {
+        dt:      Math.floor(d.getTime() / 1000) - tzOffset,
+        label:   (d.getUTCMonth()+1) + '/' + d.getUTCDate() + '（' + WDAY[d.getUTCDay()] + '）',
+        main:    { temp: (daily.temperature_2m_max[i] + daily.temperature_2m_min[i]) / 2 },
+        temp_max: daily.temperature_2m_max[i],
+        temp_min: daily.temperature_2m_min[i],
+        weather: [{ icon: OM_WMO_ICON[wmo] || '01d', description: OM_WMO_MAP[wmo] || '—' }],
+        pop:     (daily.precipitation_probability_max[i] || 0) / 100,
+      };
+    });
+
+    const fd = { list: hourlyList, dailyList, city: { timezone: tzOffset } };
+    renderHourlyForecast(fd, unit);
+    renderWeeklyForecast(fd, unit);
+    renderTempChart(fd, unit);
+    checkRainBanner(fd);
   } catch { /* 予報取得失敗は無視（メイン天気は表示済み） */ }
 }
 
@@ -478,46 +539,37 @@ function renderWeeklyForecast(fd, unit) {
   const section = document.getElementById('weekly-section');
   const grid    = document.getElementById('weekly-grid');
   if (!section || !grid) return;
-  const tz   = fd.city?.timezone ?? 0;
-  const days = {};
-  const WDAY = ['日','月','火','水','木','金','土'];
-  fd.list.forEach(item => {
-    const d   = new Date((item.dt + tz) * 1000);
-    const key = d.getUTCFullYear() + '-' + d.getUTCMonth() + '-' + d.getUTCDate();
-    if (!days[key]) {
-      const label = (d.getUTCMonth()+1) + '/' + d.getUTCDate() + '（' + WDAY[d.getUTCDay()] + '）';
-      days[key] = { label, temps: [], icons: [], pop: [] };
-    }
-    days[key].temps.push(item.main?.temp ?? 0);
-    days[key].icons.push(item.weather?.[0]?.icon ?? '01d');
-    days[key].pop.push(item.pop ?? 0);
-  });
-  const dayValues = Object.values(days).slice(0, 6);
+  const tUnit = unit === 'imperial' ? '℉' : '℃';
+
+  // Open-Meteo dailyList を優先使用
+  const dayValues = (fd.dailyList || []).slice(0, 7).map(d => ({
+    label:  d.label,
+    maxT:   d.temp_max ?? d.main?.temp,
+    minT:   d.temp_min ?? d.main?.temp,
+    avgT:   d.main?.temp,
+    icon:   d.weather?.[0]?.icon || '01d',
+    maxPop: Math.round((d.pop ?? 0) * 100),
+  }));
+
+  if (!dayValues.length) { section.style.display = 'none'; return; }
+
   grid.innerHTML = dayValues.map((d, i) => {
-    const maxT  = Math.max(...d.temps);
-    const minT  = Math.min(...d.temps);
-    const avgT  = d.temps.reduce((s, v) => s + v, 0) / d.temps.length;
-    const icon  = d.icons[Math.floor(d.icons.length / 2)] || d.icons[0];
-    const maxPop = Math.round(Math.max(...d.pop) * 100);
-    const tUnit = unit === 'imperial' ? '℉' : '℃';
-    // 前日比トレンド矢印
     let trend = '';
     if (i > 0) {
-      const prevAvg = dayValues[i-1].temps.reduce((s, v) => s + v, 0) / dayValues[i-1].temps.length;
-      const diff = avgT - prevAvg;
+      const diff = (d.avgT ?? 0) - (dayValues[i-1].avgT ?? 0);
       if (diff > 1.5)       trend = '<span class="weekly-trend up">▲</span>';
       else if (diff < -1.5) trend = '<span class="weekly-trend down">▼</span>';
       else                  trend = '<span class="weekly-trend flat">→</span>';
     }
     return '<div class="weekly-card">' +
       '<div class="weekly-day">' + d.label + '</div>' +
-      '<img src="https://openweathermap.org/img/wn/' + icon + '.png" alt="">' +
+      '<img src="https://openweathermap.org/img/wn/' + d.icon + '.png" alt="">' +
       '<div class="weekly-temps">' +
-        '<span class="weekly-max"' + tempColorStyle(maxT, unit) + '>' + Math.round(maxT) + tUnit + '</span>' +
+        '<span class="weekly-max"' + tempColorStyle(d.maxT, unit) + '>' + Math.round(d.maxT) + tUnit + '</span>' +
         trend +
-        '<span class="weekly-min"' + tempColorStyle(minT, unit) + '>' + Math.round(minT) + tUnit + '</span>' +
+        '<span class="weekly-min"' + tempColorStyle(d.minT, unit) + '>' + Math.round(d.minT) + tUnit + '</span>' +
       '</div>' +
-      (maxPop > 0 ? '<div class="weekly-pop"><span class="pop-pill" style="--p:' + maxPop + '%">' + maxPop + '%</span></div>' : '') +
+      (d.maxPop > 0 ? '<div class="weekly-pop"><span class="pop-pill" style="--p:' + d.maxPop + '%">' + d.maxPop + '%</span></div>' : '') +
     '</div>';
   }).join('');
   section.style.display = 'block';
@@ -605,6 +657,16 @@ function renderTempChart(fd, unit) {
 }
 
 // ===== 雨雲レーダーマップ（Leaflet） =====
+// RainViewer の最新タイムスタンプを取得
+async function getRainViewerTimestamp() {
+  try {
+    const r = await fetchJson('https://api.rainviewer.com/public/weather-maps.json', 5000);
+    if (!r.ok || !r.data?.radar?.past?.length) return null;
+    const past = r.data.radar.past;
+    return past[past.length - 1].time;
+  } catch { return null; }
+}
+
 function initOrUpdateMap(lat, lon) {
   const section = document.getElementById('map-section');
   if (!section || typeof L === 'undefined') return;
@@ -616,29 +678,25 @@ function initOrUpdateMap(lat, lon) {
       attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
       maxZoom: 18,
     }).addTo(leafletMap);
-    mapOverlayLayer = L.tileLayer(
-      'https://tile.openweathermap.org/map/precipitation_new/{z}/{x}/{y}.png?appid=' + WEATHER_API_KEY,
-      { opacity: 0.65, attribution: '© OpenWeatherMap' }
-    ).addTo(leafletMap);
+    // RainViewer 降水レーダー
+    getRainViewerTimestamp().then(ts => {
+      if (!ts) return;
+      mapOverlayLayer = L.tileLayer(
+        'https://tilecache.rainviewer.com/v2/radar/' + ts + '/256/{z}/{x}/{y}/4/1_1.png',
+        { opacity: 0.65, attribution: '© RainViewer' }
+      ).addTo(leafletMap);
+    });
   } else {
     leafletMap.setView([lat, lon], 8);
   }
 
   if (mapMarker) { leafletMap.removeLayer(mapMarker); }
   mapMarker = L.marker([lat, lon]).addTo(leafletMap);
-
   setTimeout(() => leafletMap.invalidateSize(), 150);
 }
 
 function setMapLayer(layerName) {
-  if (!leafletMap || !mapOverlayLayer) return;
-  leafletMap.removeLayer(mapOverlayLayer);
-  mapOverlayLayer = L.tileLayer(
-    'https://tile.openweathermap.org/map/' + layerName + '/{z}/{x}/{y}.png?appid=' + WEATHER_API_KEY,
-    { opacity: 0.65, attribution: '© OpenWeatherMap' }
-  ).addTo(leafletMap);
-  const legend = document.getElementById('map-temp-legend');
-  if (legend) legend.style.display = layerName === 'temp_new' ? 'block' : 'none';
+  // RainViewer は降水レーダーのみのため、レイヤー切り替えは無効
 }
 
 // ===== 天気アラート通知 =====
@@ -863,17 +921,16 @@ async function renderAC(q) {
     _acAbortCtrl = new AbortController();
     try {
       const gq = buildGeoQuery(q);
-      const url = 'https://api.openweathermap.org/geo/1.0/direct?q=' + encodeURIComponent(gq) + '&limit=5&appid=' + WEATHER_API_KEY;
+      const url = 'https://geocoding-api.open-meteo.com/v1/search?name=' + encodeURIComponent(gq) + '&count=5&language=ja&format=json';
       const res = await fetch(url, { signal: _acAbortCtrl.signal });
       if (!res.ok) return;
       const data = await res.json();
-      if (!Array.isArray(data) || !data.length) return;
-      const apiItems = data.map(d => {
-        const ja = d.local_names?.ja || d.name;
-        const parts = [ja];
-        if (d.state) parts.push(d.state);
-        parts.push(d.country);
-        return { label: parts.join(', '), displayName: ja, lat: d.lat, lon: d.lon };
+      if (!Array.isArray(data?.results) || !data.results.length) return;
+      const apiItems = data.results.map(d => {
+        const parts = [d.name];
+        if (d.admin1) parts.push(d.admin1);
+        if (d.country_code) parts.push(d.country_code);
+        return { label: parts.join(', '), displayName: d.name, lat: d.latitude, lon: d.longitude, country: d.country_code || '' };
       });
       renderACItems(apiItems, true);
     } catch (e) {
@@ -1503,7 +1560,7 @@ function dismissWarningBanner() {
   hideWarningBanner();
 }
 
-// 日本語都市名を OWM Geocoding 用クエリに変換
+// 日本語都市名を Geocoding クエリに変換
 // - テーブル登録済み → ローマ字 + ",JP"
 // - 未登録の日本語 → 漢字 + ",JP"（フォールバック）
 // - 英語/カンマ含む → そのまま
@@ -1529,35 +1586,27 @@ async function getWeatherByCity(cityRaw) {
     let lat, lon;
 
     // オートコンプリートで lat/lon がキャッシュされている場合はスキップ
+    let lat, lon, geoName, geoCountry;
     if (_cachedGeo && _cachedGeo.name === city) {
       ({ lat, lon } = _cachedGeo);
+      geoName    = _cachedGeo.displayName || city;
+      geoCountry = _cachedGeo.country || '';
       _cachedGeo = null;
     } else {
       _cachedGeo = null;
-      const geo = await fetchJson(
-        'https://api.openweathermap.org/geo/1.0/direct?q=' + encodeURIComponent(buildGeoQuery(city)) + '&limit=1&appid=' + WEATHER_API_KEY
-      );
-      if (geo.status === 429) { showError429(60); return; }
-      if (!geo.ok) { showError('都市検索に失敗しました（HTTP ' + geo.status + '）'); return; }
-      if (!Array.isArray(geo.data) || !geo.data.length) {
+      const geoResults = await geocodeOpenMeteo(buildGeoQuery(city));
+      if (!geoResults.length) {
         showError('「' + city + '」は見つかりませんでした。別の都市名をお試しください。'); return;
       }
-      ({ lat, lon } = geo.data[0]);
+      ({ lat, lon, name: geoName, country: geoCountry } = geoResults[0]);
     }
 
     lastCoords = { lat, lon };
     setLoading(true, '天気データを取得しています...');
-    const w = await fetchJson(
-      'https://api.openweathermap.org/data/2.5/weather?lat=' + lat + '&lon=' + lon + '&appid=' + WEATHER_API_KEY + '&units=' + unit + '&lang=ja'
-    );
-    if (w.status === 429) { showError429(60); return; }
-    if (!w.ok || w.data?.cod !== 200) {
-      // OWMが失敗した場合 Open-Meteo にフォールバック
-      const fb = await fetchWeatherOpenMeteo(lat, lon, unit);
-      if (fb) { renderWeather(fb, unit); }
-      else { showError('天気情報の取得に失敗しました。'); return; }
-    } else {
-      renderWeather(w.data, unit);
+    const w = await fetchWeatherOpenMeteo(lat, lon, unit, geoName, geoCountry);
+    if (!w) { showError('天気情報の取得に失敗しました。'); return; }
+    {
+      renderWeather(w, unit);
     }
     startAutoRefresh();
     saveHistory(city);
@@ -1584,20 +1633,24 @@ async function getWeatherByGeo() {
       const { latitude: lat, longitude: lon } = pos.coords;
       lastCoords = { lat, lon };
       setLoading(true, '天気データを取得しています...');
-      const w = await fetchJson(
-        'https://api.openweathermap.org/data/2.5/weather?lat=' + lat + '&lon=' + lon + '&appid=' + WEATHER_API_KEY + '&units=' + unit + '&lang=ja'
-      );
-      if (w.status === 429) { showError429(60); return; }
-      if (!w.ok || w.data?.cod !== 200) {
-        // OWMが失敗した場合 Open-Meteo にフォールバック
-        const fb = await fetchWeatherOpenMeteo(lat, lon, unit);
-        if (fb) { renderWeather(fb, unit); }
-        else { showError('現在地の天気取得に失敗しました。'); return; }
-      } else {
-        renderWeather(w.data, unit);
-      }
+      // Nominatim で逆ジオコーディング（都市名取得）
+      let geoName = '', geoCountry = '';
+      try {
+        const rev = await fetchJson(
+          'https://nominatim.openstreetmap.org/reverse?lat=' + lat + '&lon=' + lon + '&format=json&accept-language=ja',
+          8000
+        );
+        if (rev.ok && rev.data?.address) {
+          geoName    = rev.data.address.city || rev.data.address.town || rev.data.address.village || rev.data.address.county || '';
+          geoCountry = rev.data.address.country_code?.toUpperCase() || '';
+        }
+      } catch { /* 逆ジオコーディング失敗は無視 */ }
+
+      const w = await fetchWeatherOpenMeteo(lat, lon, unit, geoName, geoCountry);
+      if (!w) { showError('現在地の天気取得に失敗しました。'); return; }
+      renderWeather(w, unit);
       startAutoRefresh();
-      if (w.data?.name) { saveHistory(w.data.name); setShareLink(w.data.name); }
+      if (geoName) { saveHistory(geoName); setShareLink(geoName); }
       fetchAndRenderForecast(lat, lon, unit);
       fetchAndRenderAQI(lat, lon);
       setTimeout(() => initOrUpdateMap(lat, lon), 500);
@@ -2287,12 +2340,9 @@ async function autoRefreshWeather() {
   if (!lastCoords) return;
   const unit = unitSelect.value;
   try {
-    const w = await fetchJson(
-      'https://api.openweathermap.org/data/2.5/weather?lat=' + lastCoords.lat + '&lon=' + lastCoords.lon +
-      '&appid=' + WEATHER_API_KEY + '&units=' + unit + '&lang=ja'
-    );
-    if (!w.ok || w.data?.cod !== 200) return;
-    renderWeather(w.data, unit);
+    const w = await fetchWeatherOpenMeteo(lastCoords.lat, lastCoords.lon, unit, currentCity);
+    if (!w) return;
+    renderWeather(w, unit);
     fetchAndRenderForecast(lastCoords.lat, lastCoords.lon, unit);
   } catch { /* 自動更新失敗は無視 */ }
 }
