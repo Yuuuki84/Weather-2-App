@@ -296,8 +296,11 @@ async function renderFavWeatherDashboard() {
     try {
       const geoResults = await geocodeOpenMeteo(buildGeoQuery(city));
       if (!geoResults.length) return null;
-      const { lat, lon, name, country } = geoResults[0];
-      return await fetchWeatherOpenMeteo(lat, lon, 'metric', name, country);
+      const { lat, lon, country } = geoResults[0];
+      // 日本語入力はそのまま表示名として使用（カタカナ変換を防ぐ）
+      const displayName = /[\u3040-\u30ff\u3000-\u9fff\uff00-\uffef]/.test(city)
+        ? city : geoResults[0].name;
+      return await fetchWeatherOpenMeteo(lat, lon, 'metric', displayName, country);
     } catch { return null; }
   }));
 
@@ -1064,7 +1067,8 @@ function renderWeather(data, unit) {
   showResult(true);
 
   currentWeatherData = { data, unit };
-  currentCity = data.name || '';
+  // currentCity は getWeatherByCity/getWeatherByGeo で設定済みのため上書きしない
+  if (!currentCity) currentCity = data.name || '';
   updateFavBtn(currentCity);
   checkWeatherAlert(data, unit);
   _jmaWarningDismissed = false;
@@ -1655,6 +1659,7 @@ async function getWeatherByGeo() {
 
       const w = await fetchWeatherOpenMeteo(lat, lon, unit, geoName, geoCountry);
       if (!w) { showError('現在地の天気取得に失敗しました。'); return; }
+      currentCity = geoName;
       renderWeather(w, unit);
       startAutoRefresh();
       if (geoName) { saveHistory(geoName); setShareLink(geoName); }
