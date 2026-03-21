@@ -581,10 +581,17 @@
       flex-wrap: nowrap;
       overflow-x: auto;
       -webkit-overflow-scrolling: touch;
-      scrollbar-width: none;
-      padding-bottom: 4px;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border2) transparent;
+      padding-bottom: 8px;
     }
-    .news-tabs::-webkit-scrollbar { display: none; }
+    .news-tabs::-webkit-scrollbar { height: 4px; }
+    .news-tabs::-webkit-scrollbar-track { background: transparent; }
+    .news-tabs::-webkit-scrollbar-thumb {
+      background: var(--border2);
+      border-radius: 2px;
+    }
+    .news-tabs::-webkit-scrollbar-thumb:hover { background: var(--text2); }
 
     .news-tab {
       padding: 8px 16px;
