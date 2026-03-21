@@ -1689,6 +1689,70 @@
     /* ===== 429 カウントダウン ===== */
     #error-msg .countdown { font-weight: 700; font-size: 1.1em; }
 
+    /* ===== WAVE INFO ===== */
+    .wave-section { margin-bottom: 16px; }
+    .wave-card { padding: 0; overflow: hidden; }
+    .wave-current-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+      gap: 10px;
+      padding: 16px 16px 12px;
+    }
+    .wave-kv {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius2);
+      padding: 14px 12px;
+      text-align: center;
+    }
+    .wave-kv-label {
+      font-size: 11px; font-weight: 700; color: var(--text2);
+      letter-spacing: .05em; text-transform: uppercase; margin-bottom: 6px;
+    }
+    .wave-kv-value { font-size: 22px; font-weight: 800; font-family: var(--font-display); }
+    .wave-kv-sub { font-size: 11px; color: var(--text2); margin-top: 3px; }
+    .wave-state-bar {
+      height: 5px; border-radius: 2px; margin: 6px 16px 0;
+      background: linear-gradient(to right, #4ade80 0%, #a3e635 20%, #facc15 42%, #fb923c 65%, #f87171 100%);
+      position: relative;
+    }
+    .wave-state-marker {
+      position: absolute; top: -5px;
+      width: 14px; height: 14px; border-radius: 50%;
+      background: white; border: 3px solid var(--accent);
+      transform: translateX(-50%); transition: left .6s;
+      box-shadow: 0 2px 8px rgba(99,102,241,0.4);
+    }
+    .wave-scale-labels {
+      display: flex; justify-content: space-between;
+      padding: 4px 16px 10px; font-size: 10px; color: var(--text2);
+    }
+    .wave-hourly-label {
+      padding: 4px 16px 6px;
+      font-size: 11px; font-weight: 700; color: var(--text2);
+      letter-spacing: .05em; text-transform: uppercase;
+    }
+    .wave-hourly-wrap {
+      overflow-x: auto; padding: 0 16px 14px;
+      scrollbar-width: thin; scrollbar-color: var(--border2) transparent;
+    }
+    .wave-hourly-strip { display: flex; gap: 8px; min-width: max-content; padding: 4px 0; }
+    .wave-hourly-item {
+      display: flex; flex-direction: column; align-items: center; gap: 3px;
+      padding: 10px 12px; border-radius: var(--radius2);
+      background: var(--surface); border: 1px solid var(--border);
+      min-width: 66px; transition: border-color .2s, transform .15s;
+    }
+    .wave-hourly-item:hover { border-color: var(--border2); transform: translateY(-2px); }
+    .wave-hourly-time  { font-size: 11px; font-weight: 700; color: var(--text2); }
+    .wave-hourly-height { font-size: 14px; font-weight: 800; }
+    .wave-hourly-dir   { font-size: 16px; line-height: 1; }
+    .wave-hourly-period { font-size: 10px; color: var(--text2); }
+    .wave-no-data { padding: 28px; text-align: center; color: var(--text2); font-size: 14px; }
+    @media (max-width: 560px) {
+      .wave-current-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
   </style>
 </head>
 
@@ -1965,6 +2029,12 @@
             <div style="font-size:14px;font-weight:500;margin-top:4px;color:var(--text2);" id="weather-summary-detail"></div>
           </div>
         </div>
+      </div>
+
+      <!-- Wave Info -->
+      <div class="wave-section" id="wave-section" style="display:none;">
+        <div class="section-title">🌊 波情報 <span class="badge">Open-Meteo</span></div>
+        <div class="card wave-card" id="wave-card"></div>
       </div>
 
       <!-- Hourly Forecast (24h) -->

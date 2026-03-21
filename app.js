@@ -509,6 +509,149 @@ async function fetchAndRenderForecast(lat, lon, unit) {
   } catch { /* 予報取得失敗は無視（メイン天気は表示済み） */ }
 }
 
+// ===== 波状況ヘルパー =====
+function waveStateLabel(h) {
+  if (h === null || h === undefined || isNaN(h)) return '–';
+  if (h < 0.1)  return '鏡のように穏やか';
+  if (h < 0.5)  return 'さざ波';
+  if (h < 1.25) return 'やや波あり';
+  if (h < 2.5)  return '波あり';
+  if (h < 4)    return 'やや荒れ';
+  if (h < 6)    return '荒れ';
+  return '大時化';
+}
+function waveStateColor(h) {
+  if (h === null || h === undefined || isNaN(h)) return '#94a3b8';
+  if (h < 0.5)  return '#4ade80';
+  if (h < 1.25) return '#a3e635';
+  if (h < 2.5)  return '#facc15';
+  if (h < 4)    return '#fb923c';
+  return '#f87171';
+}
+function waveStatePct(h) {
+  if (h === null || h === undefined || isNaN(h)) return 0;
+  return Math.min(100, Math.round((Number(h) / 6) * 100));
+}
+function degToCompass(deg) {
+  if (deg === null || deg === undefined || isNaN(deg)) return '–';
+  const dirs = ['北','北北東','北東','東北東','東','東南東','南東','南南東','南','南南西','南西','西南西','西','西北西','北西','北北西'];
+  return dirs[Math.round(Number(deg) / 22.5) % 16];
+}
+
+// ===== 波情報レンダリング =====
+function renderWave(c, h) {
+  const card = document.getElementById('wave-card');
+  if (!card) return;
+  const wh    = c.wave_height;
+  const color = waveStateColor(wh);
+  const state = waveStateLabel(wh);
+  const pct   = waveStatePct(wh);
+  const fmtM  = v => (v !== null && v !== undefined && !isNaN(v)) ? Number(v).toFixed(1) + 'm' : '–';
+  const fmtS  = v => (v !== null && v !== undefined && !isNaN(v)) ? Number(v).toFixed(1) + 's' : '–';
+  const fmtT  = v => (v !== null && v !== undefined && !isNaN(v)) ? Number(v).toFixed(1) + '°C' : '–';
+
+  // 24時間予報ストリップ
+  let hourlyHTML = '';
+  if (h?.time?.length) {
+    const now = Date.now();
+    let startIdx = 0;
+    for (let i = 0; i < h.time.length; i++) {
+      if (new Date(h.time[i]).getTime() >= now - 3600000) { startIdx = i; break; }
+    }
+    const items = h.time.slice(startIdx, startIdx + 24);
+    items.forEach((t, i) => {
+      const idx    = startIdx + i;
+      const iH     = h.wave_height?.[idx];
+      const iD     = h.wave_direction?.[idx];
+      const iP     = h.wave_period?.[idx];
+      const iColor = waveStateColor(iH);
+      const timeStr = new Date(t).getHours().toString().padStart(2, '0') + ':00';
+      const arrow = (iD !== null && iD !== undefined && !isNaN(iD))
+        ? '<span style="display:inline-block;transform:rotate(' + Math.round(Number(iD)) + 'deg)">↑</span>'
+        : '–';
+      hourlyHTML +=
+        '<div class="wave-hourly-item">' +
+          '<span class="wave-hourly-time">' + timeStr + '</span>' +
+          '<span class="wave-hourly-height" style="color:' + iColor + '">' +
+            (iH !== null && !isNaN(iH) ? Number(iH).toFixed(1) + 'm' : '–') +
+          '</span>' +
+          '<span class="wave-hourly-dir">' + arrow + '</span>' +
+          '<span class="wave-hourly-period">' +
+            (iP !== null && !isNaN(iP) ? Number(iP).toFixed(0) + 's' : '') +
+          '</span>' +
+        '</div>';
+    });
+  }
+
+  card.innerHTML =
+    '<div class="wave-current-grid">' +
+      '<div class="wave-kv">' +
+        '<div class="wave-kv-label">🌊 波高</div>' +
+        '<div class="wave-kv-value" style="color:' + color + '">' + fmtM(wh) + '</div>' +
+        '<div class="wave-kv-sub">' + state + '</div>' +
+      '</div>' +
+      '<div class="wave-kv">' +
+        '<div class="wave-kv-label">🕒 周期</div>' +
+        '<div class="wave-kv-value">' + fmtS(c.wave_period) + '</div>' +
+        '<div class="wave-kv-sub">ピーク: ' + fmtS(c.wave_peak_period) + '</div>' +
+      '</div>' +
+      '<div class="wave-kv">' +
+        '<div class="wave-kv-label">🧭 波向</div>' +
+        '<div class="wave-kv-value" style="font-size:17px;">' + degToCompass(c.wave_direction) + '</div>' +
+        '<div class="wave-kv-sub">' + (c.wave_direction !== null && !isNaN(c.wave_direction) ? Math.round(c.wave_direction) + '°' : '–') + '</div>' +
+      '</div>' +
+      '<div class="wave-kv">' +
+        '<div class="wave-kv-label">🌐 うねり</div>' +
+        '<div class="wave-kv-value" style="color:' + waveStateColor(c.swell_wave_height) + '">' + fmtM(c.swell_wave_height) + '</div>' +
+        '<div class="wave-kv-sub">' + degToCompass(c.swell_wave_direction) + ' / ' + fmtS(c.swell_wave_period) + '</div>' +
+      '</div>' +
+      '<div class="wave-kv">' +
+        '<div class="wave-kv-label">💨 風波</div>' +
+        '<div class="wave-kv-value">' + fmtM(c.wind_wave_height) + '</div>' +
+        '<div class="wave-kv-sub">風による波</div>' +
+      '</div>' +
+      '<div class="wave-kv">' +
+        '<div class="wave-kv-label">🌡 海水温</div>' +
+        '<div class="wave-kv-value">' + fmtT(c.sea_surface_temperature) + '</div>' +
+        '<div class="wave-kv-sub">海面水温</div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="wave-state-bar"><div class="wave-state-marker" style="left:' + pct + '%"></div></div>' +
+    '<div class="wave-scale-labels"><span>穏やか</span><span>やや波あり</span><span>大時化</span></div>' +
+    '<div class="wave-hourly-label">24時間予報</div>' +
+    '<div class="wave-hourly-wrap"><div class="wave-hourly-strip">' + hourlyHTML + '</div></div>';
+}
+
+// ===== 波情報取得 =====
+async function fetchAndRenderWave(lat, lon) {
+  const section = document.getElementById('wave-section');
+  if (!section) return;
+  try {
+    const currentVars = [
+      'wave_height','wave_direction','wave_period','wave_peak_period',
+      'swell_wave_height','swell_wave_direction','swell_wave_period',
+      'wind_wave_height','sea_surface_temperature'
+    ].join(',');
+    const url =
+      'https://marine-api.open-meteo.com/v1/marine' +
+      '?latitude=' + lat + '&longitude=' + lon +
+      '&current=' + currentVars +
+      '&hourly=wave_height,wave_direction,wave_period,swell_wave_height' +
+      '&timezone=auto&forecast_days=2';
+    const r = await fetchJson(url, 10000);
+    if (!r.ok || !r.data?.current) { section.style.display = 'none'; return; }
+    const c = r.data.current;
+    // 内陸判定：主要データがすべて null なら非表示
+    if (c.wave_height === null && c.sea_surface_temperature === null) {
+      section.style.display = 'none'; return;
+    }
+    section.style.display = '';
+    renderWave(c, r.data.hourly);
+  } catch {
+    section.style.display = 'none';
+  }
+}
+
 // ===== 雨予報バナー =====
 function checkRainBanner(fd) {
   const banner = document.getElementById('rain-banner');
@@ -1633,6 +1776,7 @@ async function getWeatherByCity(cityRaw) {
     setShareLink(city);
     fetchAndRenderForecast(lat, lon, unit);
     fetchAndRenderAQI(lat, lon);
+    fetchAndRenderWave(lat, lon);
     setTimeout(() => initOrUpdateMap(lat, lon), 500);
     fetchAndRenderNews(currentCategory);
   } catch(e) {
@@ -1674,6 +1818,7 @@ async function getWeatherByGeo() {
       if (geoName) { saveHistory(geoName); setShareLink(geoName); }
       fetchAndRenderForecast(lat, lon, unit);
       fetchAndRenderAQI(lat, lon);
+      fetchAndRenderWave(lat, lon);
       setTimeout(() => initOrUpdateMap(lat, lon), 500);
       fetchAndRenderNews(currentCategory);
     } catch(e) {
@@ -2357,6 +2502,7 @@ async function autoRefreshWeather() {
     if (!w) return;
     renderWeather(w, unit);
     fetchAndRenderForecast(lastCoords.lat, lastCoords.lon, unit);
+    fetchAndRenderWave(lastCoords.lat, lastCoords.lon);
   } catch { /* 自動更新失敗は無視 */ }
 }
 
