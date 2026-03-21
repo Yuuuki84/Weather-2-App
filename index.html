@@ -2064,6 +2064,29 @@
         <div class="card wave-card" id="wave-card"></div>
       </div>
 
+      <!-- Windy Map -->
+      <div class="windy-section" id="windy-section" style="display:none;">
+        <div class="section-title">
+          🌬 波・風マップ
+          <span class="badge">Windy</span>
+        </div>
+        <div class="card windy-card">
+          <div class="windy-layer-btns" id="windy-layer-btns">
+            <button class="btn windy-layer-btn active" data-overlay="waves">🌊 波高</button>
+            <button class="btn windy-layer-btn" data-overlay="wind">💨 風速</button>
+            <button class="btn windy-layer-btn" data-overlay="swell1">🌐 うねり</button>
+            <button class="btn windy-layer-btn" data-overlay="swell2">🔵 うねり2</button>
+            <button class="btn windy-layer-btn" data-overlay="gust">⚡ 瞬間風速</button>
+            <button class="btn windy-layer-btn" data-overlay="rain">🌧 雨雲</button>
+            <button class="btn windy-layer-btn" data-overlay="clouds">☁ 雲</button>
+            <button class="btn windy-layer-btn" data-overlay="temp">🌡 気温</button>
+          </div>
+          <div class="windy-iframe-wrap">
+            <iframe id="windy-iframe" allowfullscreen title="Windy Map"></iframe>
+          </div>
+        </div>
+      </div>
+
       <!-- Hourly Forecast (24h) -->
       <div class="hourly-section" id="hourly-section" style="display:none;">
         <div class="section-title">🕐 24時間予報</div>
@@ -2093,29 +2116,6 @@
         <div class="section-title">🗺 雨雲レーダーマップ <span class="badge">RainViewer</span></div>
         <div class="card map-card">
           <div id="weather-map"></div>
-        </div>
-      </div>
-
-      <!-- Windy Map -->
-      <div class="windy-section" id="windy-section" style="display:none;">
-        <div class="section-title">
-          🌬 波・風マップ
-          <span class="badge">Windy</span>
-        </div>
-        <div class="card windy-card">
-          <div class="windy-layer-btns" id="windy-layer-btns">
-            <button class="btn windy-layer-btn active" data-overlay="waves">🌊 波高</button>
-            <button class="btn windy-layer-btn" data-overlay="wind">💨 風速</button>
-            <button class="btn windy-layer-btn" data-overlay="swell1">🌐 うねり</button>
-            <button class="btn windy-layer-btn" data-overlay="swell2">🔵 うねり2</button>
-            <button class="btn windy-layer-btn" data-overlay="gust">⚡ 瞬間風速</button>
-            <button class="btn windy-layer-btn" data-overlay="rain">🌧 雨雲</button>
-            <button class="btn windy-layer-btn" data-overlay="clouds">☁ 雲</button>
-            <button class="btn windy-layer-btn" data-overlay="temp">🌡 気温</button>
-          </div>
-          <div class="windy-iframe-wrap">
-            <iframe id="windy-iframe" allowfullscreen title="Windy Map"></iframe>
-          </div>
         </div>
       </div>
 
