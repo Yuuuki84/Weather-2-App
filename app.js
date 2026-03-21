@@ -830,6 +830,45 @@ async function getRainViewerTimestamp() {
   } catch { return null; }
 }
 
+// ===== WINDY 埋め込みマップ =====
+let windyCurrentOverlay = 'waves';
+let windyLat = null, windyLon = null;
+
+function buildWindyUrl(lat, lon, overlay) {
+  return 'https://embed.windy.com/embed2.html' +
+    '?lat=' + lat + '&lon=' + lon +
+    '&detailLat=' + lat + '&detailLon=' + lon +
+    '&zoom=7&level=surface' +
+    '&overlay=' + overlay +
+    '&product=ecmwf' +
+    '&menu=&message=true&marker=true' +
+    '&calendar=now&pressure=true' +
+    '&type=map&location=coordinates' +
+    '&detail=true&metricWind=km%2Fh&metricTemp=%C2%B0C&radarRange=-1';
+}
+
+function initWindyMap(lat, lon) {
+  windyLat = lat; windyLon = lon;
+  const section = document.getElementById('windy-section');
+  const iframe  = document.getElementById('windy-iframe');
+  if (!section || !iframe) return;
+  section.style.display = '';
+  iframe.src = buildWindyUrl(lat, lon, windyCurrentOverlay);
+}
+
+// レイヤーボタンの切り替え
+document.getElementById('windy-layer-btns')?.addEventListener('click', e => {
+  const btn = e.target.closest('.windy-layer-btn');
+  if (!btn) return;
+  document.querySelectorAll('.windy-layer-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  windyCurrentOverlay = btn.dataset.overlay;
+  if (windyLat !== null && windyLon !== null) {
+    const iframe = document.getElementById('windy-iframe');
+    if (iframe) iframe.src = buildWindyUrl(windyLat, windyLon, windyCurrentOverlay);
+  }
+});
+
 function initOrUpdateMap(lat, lon) {
   const section = document.getElementById('map-section');
   if (!section || typeof L === 'undefined') return;
@@ -1777,7 +1816,7 @@ async function getWeatherByCity(cityRaw) {
     fetchAndRenderForecast(lat, lon, unit);
     fetchAndRenderAQI(lat, lon);
     fetchAndRenderWave(lat, lon);
-    setTimeout(() => initOrUpdateMap(lat, lon), 500);
+    setTimeout(() => { initOrUpdateMap(lat, lon); initWindyMap(lat, lon); }, 500);
     fetchAndRenderNews(currentCategory);
   } catch(e) {
     if (String(e).includes('Abort') || String(e).includes('abort')) showError('通信がタイムアウトしました。ネットワークをご確認ください。');
@@ -1819,7 +1858,7 @@ async function getWeatherByGeo() {
       fetchAndRenderForecast(lat, lon, unit);
       fetchAndRenderAQI(lat, lon);
       fetchAndRenderWave(lat, lon);
-      setTimeout(() => initOrUpdateMap(lat, lon), 500);
+      setTimeout(() => { initOrUpdateMap(lat, lon); initWindyMap(lat, lon); }, 500);
       fetchAndRenderNews(currentCategory);
     } catch(e) {
       if (String(e).includes('Abort') || String(e).includes('abort')) showError('通信がタイムアウトしました。ネットワークをご確認ください。');
