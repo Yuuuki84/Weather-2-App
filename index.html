@@ -1797,7 +1797,7 @@
       position: fixed; inset: 0;
       width: 100%; height: 100%;
       pointer-events: none;
-      z-index: 1;
+      z-index: 0;
     }
     @media (max-width: 560px) {
       .windy-card { padding: 10px 10px 0 10px; }
@@ -2108,7 +2108,7 @@
           </div>
           <div class="windy-iframe-wrap">
             <iframe id="windy-iframe" allowfullscreen
-                    sandbox="allow-scripts allow-popups allow-forms"
+                    sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
                     title="Windy Map"></iframe>
           </div>
         </div>
