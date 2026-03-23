@@ -1791,6 +1791,14 @@
       width: 100%; height: 100%;
       border: none;
     }
+
+    /* ===== SEASONAL PARTICLES ===== */
+    #season-canvas {
+      position: fixed; inset: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      z-index: 1;
+    }
     @media (max-width: 560px) {
       .windy-card { padding: 10px 10px 0 10px; }
       .windy-iframe-wrap { height: 360px; }
@@ -1815,6 +1823,7 @@
     <div class="orb orb-2"></div>
     <div class="orb orb-3"></div>
   </div>
+  <canvas id="season-canvas"></canvas>
   <canvas id="particle-canvas"></canvas>
 
   <div class="wrap">

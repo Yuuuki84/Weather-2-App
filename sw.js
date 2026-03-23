@@ -1,5 +1,5 @@
 // ===== Luna & Elma Service Worker =====
-const CACHE_NAME = 'luna-elma-v3';
+const CACHE_NAME = 'luna-elma-v4';
 
 // TTL 設定（ミリ秒）
 const TTL_WEATHER = 10 * 60 * 1000; // 10分

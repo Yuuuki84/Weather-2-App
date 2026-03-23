@@ -3003,3 +3003,222 @@ function initOnboarding() {
     }
   });
 })();
+
+// ===== SEASONAL PARTICLE SYSTEM =====
+(function initSeasonalParticles() {
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const canvas = document.getElementById('season-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+
+  const month = new Date().getMonth() + 1;
+  const season =
+    month >= 3 && month <= 5 ? 'spring' :
+    month >= 6 && month <= 8 ? 'summer' :
+    month >= 9 && month <= 11 ? 'autumn' : 'winter';
+
+  function resize() {
+    canvas.width  = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+  resize();
+  window.addEventListener('resize', resize, { passive: true });
+
+  // ===== 季節ごとのパーティクル設定 =====
+  const SEASON_CFG = {
+    spring: {
+      count: 32,
+      colors: ['#ffb7c5', '#ff9eb5', '#ffd6e0', '#ff85a1', '#fce4ec'],
+      create() {
+        const c = SEASON_CFG.spring.colors;
+        return {
+          x: Math.random() * canvas.width,
+          y: Math.random() * canvas.height,
+          size: 5 + Math.random() * 8,
+          vy: 0.7 + Math.random() * 1.1,
+          vx: (Math.random() - 0.5) * 0.5,
+          rot: Math.random() * Math.PI * 2,
+          dRot: (Math.random() - 0.5) * 0.04,
+          swayA: 25 + Math.random() * 35,
+          swayS: 0.007 + Math.random() * 0.006,
+          swayO: Math.random() * Math.PI * 2,
+          color: c[Math.floor(Math.random() * c.length)],
+          alpha: 0.45 + Math.random() * 0.4,
+        };
+      },
+      update(p, t) {
+        p.x += p.vx + Math.sin(t * p.swayS + p.swayO) * 0.9;
+        p.y += p.vy;
+        p.rot += p.dRot;
+        if (p.y > canvas.height + 20) { p.y = -20; p.x = Math.random() * canvas.width; }
+      },
+      draw(p) {
+        ctx.save();
+        ctx.globalAlpha = p.alpha;
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rot);
+        ctx.fillStyle = p.color;
+        // 花びら：2枚の楕円を重ねる
+        ctx.beginPath();
+        ctx.ellipse(0, -p.size * 0.3, p.size * 0.38, p.size * 0.7, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(0, p.size * 0.3, p.size * 0.38, p.size * 0.7, 0.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      },
+    },
+
+    summer: {
+      count: 22,
+      colors: ['#ccff66', '#b8e44d', '#e0ff80', '#a5d62d'],
+      create() {
+        const c = SEASON_CFG.summer.colors;
+        return {
+          x: Math.random() * canvas.width,
+          y: canvas.height + Math.random() * 100,
+          vy: -(0.25 + Math.random() * 0.45),
+          vx: (Math.random() - 0.5) * 0.35,
+          glow: 10 + Math.random() * 14,
+          alpha: 0,
+          targetAlpha: 0.35 + Math.random() * 0.45,
+          fadeIn: true,
+          fadeSpd: 0.006 + Math.random() * 0.008,
+          color: c[Math.floor(Math.random() * c.length)],
+        };
+      },
+      update(p) {
+        p.x += p.vx; p.y += p.vy;
+        if (p.fadeIn) {
+          p.alpha += p.fadeSpd;
+          if (p.alpha >= p.targetAlpha) { p.alpha = p.targetAlpha; p.fadeIn = false; }
+        } else {
+          p.alpha -= p.fadeSpd * 0.6;
+        }
+        if (p.alpha <= 0 || p.y < -30) {
+          p.x = Math.random() * canvas.width;
+          p.y = canvas.height + 10;
+          p.alpha = 0; p.fadeIn = true;
+        }
+      },
+      draw(p) {
+        ctx.save();
+        ctx.globalAlpha = p.alpha;
+        const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.glow);
+        g.addColorStop(0, p.color);
+        g.addColorStop(0.5, p.color + '88');
+        g.addColorStop(1, 'transparent');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.glow, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      },
+    },
+
+    autumn: {
+      count: 28,
+      colors: ['#ff7043', '#ff5722', '#ffa726', '#ef6c00', '#d84315', '#ffcc02'],
+      create() {
+        const c = SEASON_CFG.autumn.colors;
+        return {
+          x: Math.random() * canvas.width,
+          y: Math.random() * canvas.height,
+          size: 6 + Math.random() * 9,
+          vy: 0.6 + Math.random() * 1.0,
+          vx: (Math.random() - 0.5) * 0.7,
+          rot: Math.random() * Math.PI * 2,
+          dRot: (Math.random() - 0.5) * 0.05,
+          swayA: 18 + Math.random() * 28,
+          swayS: 0.006 + Math.random() * 0.005,
+          swayO: Math.random() * Math.PI * 2,
+          color: c[Math.floor(Math.random() * c.length)],
+          alpha: 0.45 + Math.random() * 0.4,
+        };
+      },
+      update(p, t) {
+        p.x += p.vx + Math.sin(t * p.swayS + p.swayO) * 0.7;
+        p.y += p.vy;
+        p.rot += p.dRot;
+        if (p.y > canvas.height + 20) { p.y = -20; p.x = Math.random() * canvas.width; }
+      },
+      draw(p) {
+        ctx.save();
+        ctx.globalAlpha = p.alpha;
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rot);
+        ctx.fillStyle = p.color;
+        // 葉：楕円 + 先端の三角
+        ctx.beginPath();
+        ctx.ellipse(0, 0, p.size * 0.38, p.size * 0.72, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(0, -p.size * 0.72);
+        ctx.lineTo(-p.size * 0.15, -p.size * 0.55);
+        ctx.lineTo(p.size * 0.15, -p.size * 0.55);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      },
+    },
+
+    winter: {
+      count: 48,
+      colors: ['#ffffff', '#e8f4fd', '#cce5f6', '#ddeeff'],
+      create() {
+        const c = SEASON_CFG.winter.colors;
+        return {
+          x: Math.random() * canvas.width,
+          y: Math.random() * canvas.height,
+          size: 1.5 + Math.random() * 3.5,
+          vy: 0.4 + Math.random() * 0.7,
+          vx: (Math.random() - 0.5) * 0.35,
+          swayA: 12 + Math.random() * 18,
+          swayS: 0.004 + Math.random() * 0.007,
+          swayO: Math.random() * Math.PI * 2,
+          color: c[Math.floor(Math.random() * c.length)],
+          alpha: 0.4 + Math.random() * 0.5,
+        };
+      },
+      update(p, t) {
+        p.x += p.vx + Math.sin(t * p.swayS + p.swayO) * 0.5;
+        p.y += p.vy;
+        if (p.y > canvas.height + 10) { p.y = -10; p.x = Math.random() * canvas.width; }
+      },
+      draw(p) {
+        ctx.save();
+        ctx.globalAlpha = p.alpha;
+        ctx.fillStyle = p.color;
+        ctx.shadowColor = p.color;
+        ctx.shadowBlur = p.size * 2;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      },
+    },
+  };
+
+  const cfg = SEASON_CFG[season];
+  const particles = Array.from({ length: cfg.count }, () => cfg.create());
+
+  let t = 0;
+  let raf = null;
+
+  function animate() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    t += 0.016;
+    particles.forEach(p => { cfg.update(p, t); cfg.draw(p); });
+    raf = requestAnimationFrame(animate);
+  }
+  animate();
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      cancelAnimationFrame(raf);
+      raf = null;
+    } else if (!raf) {
+      animate();
+    }
+  });
+})();
