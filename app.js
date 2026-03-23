@@ -1927,7 +1927,7 @@ const RSS_FEEDS = {
   sports:        'https://news.yahoo.co.jp/rss/topics/sports.xml',
   entertainment: 'https://news.yahoo.co.jp/rss/topics/entertainment.xml',
   health:        'https://news.yahoo.co.jp/rss/topics/health.xml',
-  business:      'https://news.yahoo.co.jp/rss/topics/business.xml',
+  business:      'https://news.yahoo.co.jp/rss/topics/economy.xml',
   gourmet:       'https://news.yahoo.co.jp/rss/topics/gourmet.xml',
   travel:        'https://news.yahoo.co.jp/rss/topics/travel.xml',
   local:         'https://news.yahoo.co.jp/rss/topics/local.xml',
@@ -3006,7 +3006,6 @@ function initOnboarding() {
 
 // ===== SEASONAL PARTICLE SYSTEM =====
 (function initSeasonalParticles() {
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   const canvas = document.getElementById('season-canvas');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
