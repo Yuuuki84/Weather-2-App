@@ -1762,29 +1762,36 @@
 
     /* ===== WINDY MAP ===== */
     .windy-section { margin-bottom: 16px; }
-    .windy-card { padding: 16px; }
+    .windy-card { padding: 12px 12px 0 12px; }
     .windy-layer-btns {
-      display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;
+      display: flex; gap: 8px; flex-wrap: nowrap;
+      overflow-x: auto; -webkit-overflow-scrolling: touch;
+      margin-bottom: 10px;
+      padding-bottom: 4px;
+      scrollbar-width: none;
     }
+    .windy-layer-btns::-webkit-scrollbar { display: none; }
     .windy-layer-btn {
-      padding: 6px 13px; font-size: 12px; border-radius: 999px;
-      transition: all .15s; white-space: nowrap;
+      padding: 6px 14px; font-size: 12px; border-radius: 999px;
+      transition: all .15s; white-space: nowrap; flex-shrink: 0;
     }
     .windy-layer-btn.active {
       background: linear-gradient(135deg, var(--accent), #4f46e5);
       border-color: transparent; color: white;
     }
     .windy-iframe-wrap {
-      position: relative; width: 100%; padding-top: 56.25%; /* 16:9 */
-      border-radius: 12px; overflow: hidden;
+      position: relative; width: 100%;
+      height: 420px;
+      border-radius: 0 0 12px 12px; overflow: hidden;
     }
     #windy-iframe {
       position: absolute; inset: 0;
       width: 100%; height: 100%;
-      border: none; border-radius: 12px;
+      border: none;
     }
     @media (max-width: 560px) {
-      .windy-iframe-wrap { padding-top: 75%; }
+      .windy-card { padding: 10px 10px 0 10px; }
+      .windy-iframe-wrap { height: 360px; }
     }
 
   </style>
