@@ -2989,5 +2989,17 @@ function initOnboarding() {
       });
       document.getElementById('auth-backdrop')?.classList.remove('show');
     }
+
+    // SIGNED_OUT: ローカルのユーザーデータを全消去（セキュリティ対応）
+    if (event === 'SIGNED_OUT') {
+      [LS.favorites, LS.history, LS.chat, LS.bookmarks, LS.newsRead].forEach(k => {
+        localStorage.removeItem(k);
+      });
+      renderFavorites();
+      renderHistory();
+      clearChatHistory();
+      const chatContainer = document.getElementById('chat-messages');
+      if (chatContainer) chatContainer.innerHTML = '';
+    }
   });
 })();
