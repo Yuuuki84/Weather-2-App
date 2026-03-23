@@ -1746,7 +1746,8 @@ function renderWarningBanner(warnings) {
   banner.innerHTML =
     '<span class="warn-icon">' + icon + '</span>' +
     '<span class="warn-body">' + escHtml(area ? area + '：' : '') + escHtml(names) + 'が発令中です</span>' +
-    '<button class="warn-close" aria-label="閉じる" onclick="dismissWarningBanner()">✕</button>';
+    '<button class="warn-close" aria-label="閉じる">✕</button>';
+  banner.querySelector('.warn-close').addEventListener('click', dismissWarningBanner);
   banner.style.display = 'flex';
 }
 
@@ -2629,13 +2630,13 @@ function updateAuthUI(user) {
   } else {
     // Google OAuth は full_name、メール登録は email のプレフィックスを表示
     const displayName = user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || '?';
-    const initial = displayName[0].toUpperCase();
+    const initial = escHtml(displayName[0].toUpperCase());
     area.innerHTML =
       '<div class="user-badge" id="user-badge">' +
         '<div class="user-avatar">' + initial + '</div>' +
-        '<span class="user-email">' + displayName + '</span>' +
+        '<span class="user-email">' + escHtml(displayName) + '</span>' +
         '<div class="user-dropdown">' +
-          '<div class="user-dd-item" id="user-email-dd" style="font-size:11px;color:var(--text2);padding-bottom:4px;border-bottom:1px solid var(--border);">' + (user.email || '') + '</div>' +
+          '<div class="user-dd-item" id="user-email-dd" style="font-size:11px;color:var(--text2);padding-bottom:4px;border-bottom:1px solid var(--border);">' + escHtml(user.email || '') + '</div>' +
           '<div class="user-dd-item danger" id="signout-btn">ログアウト</div>' +
         '</div>' +
       '</div>';
