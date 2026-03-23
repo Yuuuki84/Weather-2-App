@@ -2147,6 +2147,10 @@ function attachSwipeToCard(card) {
 }
 
 function attachNewsListeners(container) {
+  // 画像読み込み失敗時に親要素を非表示（inline onerror 不使用）
+  container.querySelectorAll('.news-img img').forEach(img => {
+    img.addEventListener('error', () => { img.parentElement.style.display = 'none'; }, { once: true });
+  });
   container.querySelectorAll('.news-card').forEach(el => {
     const open = () => {
       const h = el.dataset.url;
@@ -2226,7 +2230,7 @@ function newsCardHTML(a, featured, categoryLabel, readSet) {
   const hasImage = !!a.image;
   const isRead   = readSet && readSet.has(a.url);
   const imgSection = hasImage
-    ? '<div class="news-img"><img src="' + escHtml(a.image) + '" alt="" loading="lazy" onerror="this.parentElement.style.display=\'none\'"></div>'
+    ? '<div class="news-img"><img src="' + escHtml(a.image) + '" alt="" loading="lazy"></div>'
     : '';
   const timeStr  = relativeTime(a.publishedAt);
   const readBadge = isRead ? '<span class="news-read-badge">既読</span>' : '';
@@ -2604,7 +2608,7 @@ function renderJMAForecast(jmaData) {
       : '';
     return '<div class="jma-day">' +
       '<div class="jma-day-label">' + d.label + ' ' + d.date + '</div>' +
-      (iconUrl ? '<img class="jma-day-icon" src="' + iconUrl + '" onerror="this.style.display=\'none\'" alt="">' : '') +
+      (iconUrl ? '<img class="jma-day-icon" src="' + iconUrl + '" alt="">' : '') +
       '<div class="jma-day-weather">' + d.weather + '</div>' +
       '<div class="jma-day-pop">☂ ' + pop + '</div>' +
       '</div>';
@@ -2615,10 +2619,14 @@ function renderJMAForecast(jmaData) {
       '<span class="jma-area">' + jmaData.areaName + '</span>' +
     '</div>' +
     '<div class="jma-days">' + dayCards + '</div>';
+  panel.querySelectorAll('.jma-day-icon').forEach(img => {
+    img.addEventListener('error', () => { img.style.display = 'none'; }, { once: true });
+  });
   panel.style.display = 'block';
 }
 
 // ===== Supabase 認証 UI =====
+let _userBadgeCloseListenerAdded = false;
 function updateAuthUI(user) {
   const area = document.getElementById('auth-area');
   if (!area) return;
@@ -2644,9 +2652,12 @@ function updateAuthUI(user) {
       e.stopPropagation();
       this.classList.toggle('open');
     });
-    document.addEventListener('click', () => {
-      document.getElementById('user-badge')?.classList.remove('open');
-    }, { once: false });
+    if (!_userBadgeCloseListenerAdded) {
+      document.addEventListener('click', () => {
+        document.getElementById('user-badge')?.classList.remove('open');
+      });
+      _userBadgeCloseListenerAdded = true;
+    }
     document.getElementById('signout-btn')?.addEventListener('click', async () => {
       await sbSignOut();
     });
@@ -2901,6 +2912,11 @@ function initOnboarding() {
   }
 
   sbOnAuthChange((event, user) => {
+    // OAuthリダイレクト後の初回読み込み:
+    // PKCE code exchange が非同期のため INITIAL_SESSION が先に null で来ることがある。
+    // ?code= が残っている間はログアウト表示をスキップし SIGNED_IN を待つ。
+    const hasPkceCode = new URL(location.href).searchParams.has('code');
+    if (event === 'INITIAL_SESSION' && !user && hasPkceCode) return;
     updateAuthUI(user);
     // INITIAL_SESSION: ページ読み込み時の既存セッション検出
     // SIGNED_IN: 新規ログイン完了

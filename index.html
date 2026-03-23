@@ -2265,10 +2265,6 @@
   <script src="config.js"></script>
   <script src="supabase.js"></script>
   <script src="app.js"></script>
-  <script>
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./sw.js').catch(e => console.warn('[SW]', e));
-    }
-  </script>
+  <script src="init-sw.js"></script>
 </body>
 </html>

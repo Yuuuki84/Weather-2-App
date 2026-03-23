@@ -13,6 +13,7 @@ const STATIC_ASSETS = [
   './config.js',
   './manifest.json',
   './supabase.js',
+  './init-sw.js',
 ];
 
 // インストール時：静的アセットをキャッシュ
