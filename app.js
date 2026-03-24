@@ -1239,6 +1239,7 @@ function initParticles(type) {
 let _particleLastTime = 0;
 const _PARTICLE_INTERVAL = _isMobile ? 50 : 33; // mobile:20fps / desktop:30fps
 function animParticles(ts = 0) {
+  if (document.hidden) { particleAnim = null; return; } // タブ非表示時は停止
   if (ts - _particleLastTime < _PARTICLE_INTERVAL) {
     particleAnim = requestAnimationFrame(animParticles);
     return;
@@ -1269,10 +1270,14 @@ document.addEventListener('visibilitychange', () => {
     animParticles();
   }
 });
+let _resizeParticleTimer = null;
 window.addEventListener('resize', () => {
-  particleCanvas.width  = window.innerWidth;
-  particleCanvas.height = window.innerHeight;
-});
+  clearTimeout(_resizeParticleTimer);
+  _resizeParticleTimer = setTimeout(() => {
+    particleCanvas.width  = window.innerWidth;
+    particleCanvas.height = window.innerHeight;
+  }, 200);
+}, { passive: true });
 
 // ===== 天気描画 =====
 function renderWeather(data, unit) {
@@ -2205,7 +2210,7 @@ function renderNewsCards(articles, categoryLabel) {
 }
 
 function attachSwipeToCard(card) {
-  let startX = 0, startY = 0, moved = false;
+  let startX = 0, startY = 0, moved = false, _swipeDx = 0, _swipeRaf = null;
   card.addEventListener('touchstart', e => {
     startX = e.touches[0].clientX;
     startY = e.touches[0].clientY;
@@ -2216,9 +2221,14 @@ function attachSwipeToCard(card) {
     const dy = e.touches[0].clientY - startY;
     if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 10) {
       moved = true;
-      card.style.transform = 'translateX(' + (dx * 0.3) + 'px)';
-      card.classList.toggle('swipe-left',  dx < -20);
-      card.classList.toggle('swipe-right', dx > 20);
+      _swipeDx = dx;
+      if (_swipeRaf) return;
+      _swipeRaf = requestAnimationFrame(() => {
+        _swipeRaf = null;
+        card.style.transform = 'translateX(' + (_swipeDx * 0.3) + 'px)';
+        card.classList.toggle('swipe-left',  _swipeDx < -20);
+        card.classList.toggle('swipe-right', _swipeDx > 20);
+      });
     }
   }, { passive: true });
   card.addEventListener('touchend', e => {
@@ -2249,58 +2259,51 @@ function attachSwipeToCard(card) {
 }
 
 function attachNewsListeners(container) {
-  // 画像読み込み失敗時に親要素を非表示（inline onerror 不使用）
-  container.querySelectorAll('.news-img img').forEach(img => {
-    img.addEventListener('error', () => { img.parentElement.style.display = 'none'; }, { once: true });
-  });
-  container.querySelectorAll('.news-card').forEach(el => {
-    const open = () => {
-      const h = el.dataset.url;
-      if (!h) return;
-      markAsRead(h);
-      el.classList.add('is-read');
+  // 画像エラーをキャプチャ委譲（個別リスナー不要）
+  container.addEventListener('error', e => {
+    if (e.target.matches('.news-img img')) e.target.parentElement.style.display = 'none';
+  }, { capture: true });
+
+  // クリック委譲（querySelectorAll × 3 → 1 リスナー）
+  container.addEventListener('click', e => {
+    const bmarkBtn = e.target.closest('.news-bmark-btn');
+    if (bmarkBtn) {
+      e.stopPropagation();
+      toggleBookmark({ url: bmarkBtn.dataset.url, title: bmarkBtn.dataset.title, source: bmarkBtn.dataset.source, publishedAt: bmarkBtn.dataset.pub, image: bmarkBtn.dataset.img });
+      const bmarked = isBookmarked(bmarkBtn.dataset.url);
+      bmarkBtn.textContent = bmarked ? '★' : '☆';
+      bmarkBtn.classList.toggle('bookmarked', bmarked);
+      return;
+    }
+    const summaryBtn = e.target.closest('.news-summary-btn');
+    if (summaryBtn) { e.stopPropagation(); handleSummaryBtn(summaryBtn); return; }
+    const card = e.target.closest('.news-card');
+    if (card) {
+      const h = card.dataset.url; if (!h) return;
+      markAsRead(h); card.classList.add('is-read');
       window.open(h, '_blank', 'noopener');
-    };
-    el.addEventListener('click', open);
-    el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') open(); });
+    }
   });
-  container.querySelectorAll('.news-bmark-btn').forEach(btn => {
-    btn.addEventListener('click', e => {
-      e.stopPropagation();
-      toggleBookmark({ url: btn.dataset.url, title: btn.dataset.title, source: btn.dataset.source, publishedAt: btn.dataset.pub, image: btn.dataset.img });
-      const bmarked = isBookmarked(btn.dataset.url);
-      btn.textContent = bmarked ? '★' : '☆';
-      btn.classList.toggle('bookmarked', bmarked);
-    });
+  container.addEventListener('keydown', e => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const card = e.target.closest('.news-card');
+    if (card) { const h = card.dataset.url; if (!h) return; markAsRead(h); card.classList.add('is-read'); window.open(h, '_blank', 'noopener'); }
   });
-  container.querySelectorAll('.news-summary-btn').forEach(btn => {
-    btn.addEventListener('click', async e => {
-      e.stopPropagation();
-      const box = btn.closest('.news-body')?.querySelector('.news-summary-box');
-      if (!box) return;
-      if (box.classList.contains('visible') && !btn.dataset.isError) {
-        box.classList.remove('visible');
-        btn.textContent = '✨ 要約';
-        delete btn.dataset.isError;
-        return;
-      }
-      btn.disabled = true;
-      btn.textContent = '…';
-      delete btn.dataset.isError;
-      const summary = await summarizeArticle(btn.dataset.url, btn.dataset.title, btn.dataset.desc);
-      box.textContent = summary;
-      box.classList.add('visible');
-      btn.disabled = false;
-      if (summary.startsWith('⚠️')) {
-        btn.dataset.isError = '1';
-        btn.textContent = '↺ 再試行';
-      } else {
-        btn.textContent = '✕ 閉じる';
-      }
-    });
-  });
-  // スワイプ操作をすべてのニュースカードに適用
+  // スワイプは引き続き個別適用
   container.querySelectorAll('.news-card').forEach(attachSwipeToCard);
+}
+
+async function handleSummaryBtn(btn) {
+  const box = btn.closest('.news-body')?.querySelector('.news-summary-box');
+  if (!box) return;
+  if (box.classList.contains('visible') && !btn.dataset.isError) {
+    box.classList.remove('visible'); btn.textContent = '✨ 要約'; delete btn.dataset.isError; return;
+  }
+  btn.disabled = true; btn.textContent = '…'; delete btn.dataset.isError;
+  const summary = await summarizeArticle(btn.dataset.url, btn.dataset.title, btn.dataset.desc);
+  box.textContent = summary; box.classList.add('visible'); btn.disabled = false;
+  if (summary.startsWith('⚠️')) { btn.dataset.isError = '1'; btn.textContent = '↺ 再試行'; }
+  else { btn.textContent = '✕ 閉じる'; }
 }
 
 function renderBookmarkCards() {
@@ -2480,8 +2483,13 @@ let newsShowUnreadOnly = false;
   btn.title = 'トップへ戻る';
   btn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
   document.body.appendChild(btn);
+  let _scrollTopRaf = null;
   window.addEventListener('scroll', () => {
-    btn.classList.toggle('visible', window.scrollY > 400);
+    if (_scrollTopRaf) return;
+    _scrollTopRaf = requestAnimationFrame(() => {
+      _scrollTopRaf = null;
+      btn.classList.toggle('visible', window.scrollY > 400);
+    });
   }, { passive: true });
 })();
 
@@ -2672,7 +2680,7 @@ document.getElementById('notif-btn').addEventListener('click', async () => {
 
 // ===== 自動リロード =====
 async function autoRefreshWeather() {
-  if (!lastCoords) return;
+  if (!lastCoords || document.hidden) return; // タブ非表示時はスキップ
   const unit = unitSelect.value;
   try {
     const w = await fetchWeatherOpenMeteo(lastCoords.lat, lastCoords.lon, unit, currentCity);
@@ -2872,14 +2880,19 @@ function setAuthMsg(type, msg) {
     if (window.scrollY === 0) { startY = e.touches[0].clientY; pulling = true; }
   }, { passive: true });
 
+  let _ptrDy = 0, _ptrRaf = null;
   document.addEventListener('touchmove', e => {
     if (!pulling) return;
-    const dy = e.touches[0].clientY - startY;
-    if (dy > 10) {
-      indicator.classList.add('ptr-pulling');
-      ptrIcon.textContent  = dy >= THRESHOLD ? '↺' : '↓';
-      ptrLabel.textContent = dy >= THRESHOLD ? '放して更新' : '引いて更新';
-    }
+    _ptrDy = e.touches[0].clientY - startY;
+    if (_ptrRaf) return;
+    _ptrRaf = requestAnimationFrame(() => {
+      _ptrRaf = null;
+      if (_ptrDy > 10) {
+        indicator.classList.add('ptr-pulling');
+        ptrIcon.textContent  = _ptrDy >= THRESHOLD ? '↺' : '↓';
+        ptrLabel.textContent = _ptrDy >= THRESHOLD ? '放して更新' : '引いて更新';
+      }
+    });
   }, { passive: true });
 
   document.addEventListener('touchend', e => {
@@ -3461,6 +3474,7 @@ function initOnboarding() {
   const _S_INTERVAL = _sMobile ? 66 : 40; // mobile:15fps / desktop:25fps
 
   function animate(ts = 0) {
+    if (document.hidden) { raf = null; return; } // タブ非表示時は停止
     if (ts - _sLastTime < _S_INTERVAL) {
       raf = requestAnimationFrame(animate);
       return;
