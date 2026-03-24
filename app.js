@@ -1607,63 +1607,6 @@ const POODLE_MESSAGES = {
   'wx-thunder': ['雷こわい！そばにいてね…⚡', 'ゴロゴロって聞こえる…だっこして 🫂', '外はこわいから今日はずっとおうちにいよう'],
 };
 
-// ===== POODLE LIGHTBOX =====
-let _poodleModalIdx = 0;
-
-function openPoodleModal(photo) {
-  let modal = document.getElementById('poodle-modal');
-  if (!modal) {
-    modal = document.createElement('div');
-    modal.id = 'poodle-modal';
-    modal.className = 'poodle-modal';
-    modal.innerHTML =
-      '<div class="poodle-modal-overlay"></div>' +
-      '<div class="poodle-modal-inner">' +
-        '<button class="poodle-modal-close" title="閉じる">×</button>' +
-        '<img id="poodle-modal-img" src="" alt="Luna & Elma">' +
-        '<div class="poodle-modal-nav">' +
-          '<button class="poodle-modal-prev" title="前の写真">❮</button>' +
-          '<span class="poodle-modal-counter"></span>' +
-          '<button class="poodle-modal-next" title="次の写真">❯</button>' +
-        '</div>' +
-      '</div>';
-    document.body.appendChild(modal);
-    modal.querySelector('.poodle-modal-overlay').addEventListener('click', closePoodleModal);
-    modal.querySelector('.poodle-modal-close').addEventListener('click', closePoodleModal);
-    modal.querySelector('.poodle-modal-prev').addEventListener('click', () => navigatePoodleModal(-1));
-    modal.querySelector('.poodle-modal-next').addEventListener('click', () => navigatePoodleModal(1));
-    document.addEventListener('keydown', e => {
-      if (!document.getElementById('poodle-modal')?.classList.contains('show')) return;
-      if (e.key === 'Escape') closePoodleModal();
-      if (e.key === 'ArrowLeft') navigatePoodleModal(-1);
-      if (e.key === 'ArrowRight') navigatePoodleModal(1);
-    });
-  }
-  _poodleModalIdx = LUNA_ELMA_PHOTOS.indexOf(photo);
-  if (_poodleModalIdx < 0) _poodleModalIdx = 0;
-  updatePoodleModalImg();
-  modal.classList.add('show');
-  document.body.style.overflow = 'hidden';
-}
-
-function updatePoodleModalImg() {
-  const img = document.getElementById('poodle-modal-img');
-  if (img) img.src = LUNA_ELMA_PHOTOS[_poodleModalIdx];
-  const counter = document.querySelector('.poodle-modal-counter');
-  if (counter) counter.textContent = (_poodleModalIdx + 1) + ' / ' + LUNA_ELMA_PHOTOS.length;
-}
-
-function navigatePoodleModal(dir) {
-  _poodleModalIdx = (_poodleModalIdx + dir + LUNA_ELMA_PHOTOS.length) % LUNA_ELMA_PHOTOS.length;
-  updatePoodleModalImg();
-}
-
-function closePoodleModal() {
-  const modal = document.getElementById('poodle-modal');
-  if (modal) modal.classList.remove('show');
-  document.body.style.overflow = '';
-}
-
 function fetchPoodleCard(wxClass) {
   const wrap = document.getElementById('poodle-card');
   if (!wrap) return;
@@ -1684,26 +1627,33 @@ function fetchPoodleCard(wxClass) {
 
   wrap.style.display = 'flex';
   wrap.innerHTML =
-    '<div class="poodle-img-wrap" data-photo="' + mainPhoto + '" tabindex="0" title="タップで拡大">' +
-      '<img src="' + mainPhoto + '" alt="Luna & Elma" loading="lazy">' +
-      '<div class="poodle-expand-hint">🔍</div>' +
+    '<div class="poodle-img-wrap">' +
+      '<img id="poodle-main-img" src="' + mainPhoto + '" alt="Luna & Elma" loading="lazy">' +
     '</div>' +
     '<div class="poodle-body">' +
       '<div class="poodle-names">Luna <span>&</span> Elma</div>' +
       '<div class="poodle-msg">' + msg + '</div>' +
       '<div class="poodle-thumbs">' +
         thumbs.map(p =>
-          '<div class="poodle-thumb" data-photo="' + p + '" tabindex="0" title="タップで拡大">' +
-            '<img src="' + p + '" alt="Luna & Elma" loading="lazy">' +
+          '<div class="poodle-thumb" tabindex="0" title="写真を切り替え">' +
+            '<img src="' + p + '" alt="Luna & Elma" loading="lazy" data-photo="' + p + '">' +
           '</div>'
         ).join('') +
       '</div>' +
     '</div>';
 
-  wrap.querySelectorAll('[data-photo]').forEach(el => {
-    const open = () => openPoodleModal(el.dataset.photo);
-    el.addEventListener('click', open);
-    el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') open(); });
+  // サムネイルクリックでメイン写真を差し替え
+  wrap.querySelectorAll('.poodle-thumb').forEach(thumb => {
+    const swap = () => {
+      const newSrc = thumb.querySelector('img').dataset.photo;
+      const mainImg = document.getElementById('poodle-main-img');
+      if (mainImg && newSrc) {
+        mainImg.style.opacity = '0';
+        setTimeout(() => { mainImg.src = newSrc; mainImg.style.opacity = '1'; }, 160);
+      }
+    };
+    thumb.addEventListener('click', swap);
+    thumb.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') swap(); });
   });
 }
 
@@ -2566,6 +2516,10 @@ clearHistoryBtn.addEventListener('click', clearHistory);
 unitSelect.addEventListener('change', () => {
   localStorage.setItem(LS.unit, unitSelect.value);
   sbSaveSettings({ unit: unitSelect.value });
+  unitSelect.classList.remove('unit-changed');
+  void unitSelect.offsetWidth; // reflow で再発火
+  unitSelect.classList.add('unit-changed');
+  unitSelect.addEventListener('animationend', () => unitSelect.classList.remove('unit-changed'), { once: true });
   const mobileSelect = document.getElementById('unit-select-mobile');
   if (mobileSelect) mobileSelect.value = unitSelect.value;
   const c = cityInput.value.trim();
@@ -2589,6 +2543,10 @@ if (unitSelectMobile) {
     unitSelect.value = unitSelectMobile.value;
     localStorage.setItem(LS.unit, unitSelectMobile.value);
     sbSaveSettings({ unit: unitSelectMobile.value });
+    unitSelectMobile.classList.remove('unit-changed');
+    void unitSelectMobile.offsetWidth;
+    unitSelectMobile.classList.add('unit-changed');
+    unitSelectMobile.addEventListener('animationend', () => unitSelectMobile.classList.remove('unit-changed'), { once: true });
     const c = cityInput.value.trim();
     if (c) getWeatherByCity(c);
   });
@@ -3127,9 +3085,9 @@ function initOnboarding() {
     });
   })();
 
-  // ===== リップルエフェクト（全ボタン共通） =====
+  // ===== リップルエフェクト（ボタン・ニュースタブ共通） =====
   document.addEventListener('click', e => {
-    const btn = e.target.closest('.btn');
+    const btn = e.target.closest('.btn, .news-tab, .chip');
     if (!btn) return;
     const rect = btn.getBoundingClientRect();
     const size = Math.max(rect.width, rect.height);

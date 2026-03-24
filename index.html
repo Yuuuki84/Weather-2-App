@@ -302,7 +302,7 @@
     .ac-item-icon { color: var(--text2); font-size: 16px; }
 
     /* unit select */
-    #unit-select {
+    #unit-select, #unit-select-mobile {
       padding: 12px 14px;
       background: var(--surface2);
       border: 1px solid var(--border2);
@@ -313,6 +313,21 @@
       font-weight: 600;
       cursor: pointer;
       outline: none;
+      transition: background .2s, border-color .2s, transform .1s;
+    }
+    #unit-select:hover, #unit-select-mobile:hover { border-color: var(--accent); }
+    #unit-select:focus, #unit-select-mobile:focus {
+      border-color: var(--accent);
+      outline: 2px solid rgba(99,102,241,0.20);
+      outline-offset: 1px;
+    }
+    .unit-changed {
+      animation: unitFlash .4s ease;
+    }
+    @keyframes unitFlash {
+      0%   { background: var(--surface2); transform: scale(1); }
+      35%  { background: rgba(99,102,241,0.18); border-color: var(--accent); transform: scale(1.06); }
+      100% { background: var(--surface2); transform: scale(1); }
     }
 
     /* ===== BUTTONS ===== */
@@ -331,7 +346,7 @@
       user-select: none;
     }
     .btn:hover { transform: translateY(-1px); border-color: var(--accent); }
-    .btn:active { transform: translateY(0); }
+    .btn:active { transform: scale(0.93) translateY(0) !important; }
     .btn:disabled { opacity: .45; cursor: not-allowed; transform: none; }
     .btn.primary {
       background: linear-gradient(135deg, var(--accent), var(--accent-dark));
@@ -627,7 +642,8 @@
       border-color: transparent;
       color: white;
     }
-    .news-tab { position: relative; }
+    .news-tab { position: relative; overflow: hidden; }
+    .news-tab:active { transform: scale(0.93); }
     .tab-badge {
       position: absolute;
       top: -4px;
@@ -1511,7 +1527,8 @@
     .vol-icon-wrap { display: inline-flex; align-items: center; flex-shrink: 0; }
 
     /* ===== POODLE GALLERY ===== */
-    .poodle-img-wrap { cursor: pointer; position: relative; }
+    #poodle-main-img { transition: opacity .16s ease; }
+    .poodle-img-wrap { position: relative; }
     .poodle-expand-hint {
       position: absolute; bottom: 8px; right: 8px;
       background: rgba(0,0,0,0.55); color: white;
@@ -2089,6 +2106,66 @@
     html[data-bg-theme="ocean"] body.wx-snow    .orb-2 { background: #bae6fd; }
     html[data-bg-theme="ocean"] body.wx-snow    .orb-3 { background: #a5f3fc; }
 
+    /* Cherry（桜） */
+    html[data-bg-theme="cherry"] { --bg: #12030d; }
+    html[data-bg-theme="cherry"] body.wx-clear   .orb-1 { background: #9d174d; }
+    html[data-bg-theme="cherry"] body.wx-clear   .orb-2 { background: #be185d; }
+    html[data-bg-theme="cherry"] body.wx-clear   .orb-3 { background: #831843; }
+    html[data-bg-theme="cherry"] body.wx-cloudy  .orb-1 { background: #6b2147; }
+    html[data-bg-theme="cherry"] body.wx-cloudy  .orb-2 { background: #4a1942; }
+    html[data-bg-theme="cherry"] body.wx-cloudy  .orb-3 { background: #4c1d95; }
+    html[data-bg-theme="cherry"] body.wx-rain    .orb-1 { background: #9f1239; }
+    html[data-bg-theme="cherry"] body.wx-rain    .orb-2 { background: #881337; }
+    html[data-bg-theme="cherry"] body.wx-rain    .orb-3 { background: #7f1d1d; }
+    html[data-bg-theme="cherry"] body.wx-snow    .orb-1 { background: #fbcfe8; }
+    html[data-bg-theme="cherry"] body.wx-snow    .orb-2 { background: #fce7f3; }
+    html[data-bg-theme="cherry"] body.wx-snow    .orb-3 { background: #f5d0fe; }
+
+    /* Forest（森） */
+    html[data-bg-theme="forest"] { --bg: #030c05; }
+    html[data-bg-theme="forest"] body.wx-clear   .orb-1 { background: #14532d; }
+    html[data-bg-theme="forest"] body.wx-clear   .orb-2 { background: #15803d; }
+    html[data-bg-theme="forest"] body.wx-clear   .orb-3 { background: #1a400a; }
+    html[data-bg-theme="forest"] body.wx-cloudy  .orb-1 { background: #1c3428; }
+    html[data-bg-theme="forest"] body.wx-cloudy  .orb-2 { background: #14432a; }
+    html[data-bg-theme="forest"] body.wx-cloudy  .orb-3 { background: #2d3e1a; }
+    html[data-bg-theme="forest"] body.wx-rain    .orb-1 { background: #134e3a; }
+    html[data-bg-theme="forest"] body.wx-rain    .orb-2 { background: #0a3628; }
+    html[data-bg-theme="forest"] body.wx-rain    .orb-3 { background: #1a3320; }
+    html[data-bg-theme="forest"] body.wx-snow    .orb-1 { background: #d1fae5; }
+    html[data-bg-theme="forest"] body.wx-snow    .orb-2 { background: #a7f3d0; }
+    html[data-bg-theme="forest"] body.wx-snow    .orb-3 { background: #e0f2fe; }
+
+    /* Lavender（ラベンダー） */
+    html[data-bg-theme="lavender"] { --bg: #0a0614; }
+    html[data-bg-theme="lavender"] body.wx-clear   .orb-1 { background: #5b21b6; }
+    html[data-bg-theme="lavender"] body.wx-clear   .orb-2 { background: #7c3aed; }
+    html[data-bg-theme="lavender"] body.wx-clear   .orb-3 { background: #4c1d95; }
+    html[data-bg-theme="lavender"] body.wx-cloudy  .orb-1 { background: #3b1c6b; }
+    html[data-bg-theme="lavender"] body.wx-cloudy  .orb-2 { background: #4527a0; }
+    html[data-bg-theme="lavender"] body.wx-cloudy  .orb-3 { background: #312e81; }
+    html[data-bg-theme="lavender"] body.wx-rain    .orb-1 { background: #4c1d95; }
+    html[data-bg-theme="lavender"] body.wx-rain    .orb-2 { background: #6d28d9; }
+    html[data-bg-theme="lavender"] body.wx-rain    .orb-3 { background: #1e3a8a; }
+    html[data-bg-theme="lavender"] body.wx-snow    .orb-1 { background: #ede9fe; }
+    html[data-bg-theme="lavender"] body.wx-snow    .orb-2 { background: #ddd6fe; }
+    html[data-bg-theme="lavender"] body.wx-snow    .orb-3 { background: #e0e7ff; }
+
+    /* Galaxy（銀河） */
+    html[data-bg-theme="galaxy"] { --bg: #01000a; }
+    html[data-bg-theme="galaxy"] body.wx-clear   .orb-1 { background: #1e1b4b; }
+    html[data-bg-theme="galaxy"] body.wx-clear   .orb-2 { background: #312e81; }
+    html[data-bg-theme="galaxy"] body.wx-clear   .orb-3 { background: #6b21a8; }
+    html[data-bg-theme="galaxy"] body.wx-cloudy  .orb-1 { background: #1e1b4b; }
+    html[data-bg-theme="galaxy"] body.wx-cloudy  .orb-2 { background: #1e3a8a; }
+    html[data-bg-theme="galaxy"] body.wx-cloudy  .orb-3 { background: #4c1d95; }
+    html[data-bg-theme="galaxy"] body.wx-rain    .orb-1 { background: #312e81; }
+    html[data-bg-theme="galaxy"] body.wx-rain    .orb-2 { background: #1e3a8a; }
+    html[data-bg-theme="galaxy"] body.wx-rain    .orb-3 { background: #0e7490; }
+    html[data-bg-theme="galaxy"] body.wx-snow    .orb-1 { background: #c7d2fe; }
+    html[data-bg-theme="galaxy"] body.wx-snow    .orb-2 { background: #ddd6fe; }
+    html[data-bg-theme="galaxy"] body.wx-snow    .orb-3 { background: #e0e7ff; }
+
   </style>
 </head>
 
@@ -2210,6 +2287,14 @@
               style="background:linear-gradient(135deg,#92400e,#831843)" title="Sunset" aria-label="Sunset">🌅</button>
             <button class="bg-swatch" data-bg-theme="ocean"
               style="background:linear-gradient(135deg,#164e63,#134e4a)" title="Ocean" aria-label="Ocean">🌊</button>
+            <button class="bg-swatch" data-bg-theme="cherry"
+              style="background:linear-gradient(135deg,#9d174d,#12030d)" title="Cherry（桜）" aria-label="Cherry">🌸</button>
+            <button class="bg-swatch" data-bg-theme="forest"
+              style="background:linear-gradient(135deg,#14532d,#030c05)" title="Forest（森）" aria-label="Forest">🌿</button>
+            <button class="bg-swatch" data-bg-theme="lavender"
+              style="background:linear-gradient(135deg,#7c3aed,#0a0614)" title="Lavender（ラベンダー）" aria-label="Lavender">💜</button>
+            <button class="bg-swatch" data-bg-theme="galaxy"
+              style="background:linear-gradient(135deg,#312e81,#01000a)" title="Galaxy（銀河）" aria-label="Galaxy">🌌</button>
           </div>
         </div>
 
