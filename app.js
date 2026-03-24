@@ -1833,6 +1833,8 @@ async function getWeatherByCity(cityRaw) {
     }
 
     lastCoords = { lat, lon };
+    // ユーザーの元の入力を currentCity として確定（renderWeather での上書きを防ぐ）
+    currentCity = city;
     setLoading(true, '天気データを取得しています...');
     const w = await fetchWeatherOpenMeteo(lat, lon, unit, geoName, geoCountry);
     if (!w) { showError('天気情報の取得に失敗しました。'); return; }
@@ -3054,7 +3056,9 @@ function initOnboarding() {
 
         // お気に入り: クラウド ↔ ローカル 双方向マージ
         // ローカルにあってクラウドにないものも含めて統合し、クラウドへ書き戻す
-        const cloudFavs  = Array.isArray(s.favorites) ? s.favorites : [];
+        // カタカナのみの文字列（旧APIが返す誤データ例:「ワカヤマシ」）を除外
+        const sanitizeFavs = arr => arr.filter(c => !/^[\u30A0-\u30FF\s]+$/.test(c));
+        const cloudFavs  = sanitizeFavs(Array.isArray(s.favorites) ? s.favorites : []);
         const localFavs  = loadFavorites();
         const mergedFavs = [...cloudFavs, ...localFavs.filter(c => !cloudFavs.includes(c))].slice(0, 10);
         if (mergedFavs.length) {
