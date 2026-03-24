@@ -438,7 +438,7 @@
     }
     #weather-icon img {
       width: 88px; height: 88px;
-      filter: drop-shadow(0 8px 24px rgba(0,0,0,0.4));
+      filter: drop-shadow(0 4px 16px rgba(0,0,0,0.35)) brightness(1.25) contrast(1.05);
     }
     .temp-block {}
     .temp-big {
@@ -489,8 +489,16 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
       font-size: 13px;
       color: var(--text2);
+    }
+    .share-row > div {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
     }
     .share-link {
       color: var(--accent2);
@@ -498,7 +506,8 @@
       font-weight: 600;
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 4px;
+      white-space: nowrap;
       transition: color .15s;
     }
     .share-link:hover { color: var(--text); }
@@ -858,6 +867,13 @@
       .news-grid { grid-template-columns: 1fr; }
       .hero-top { flex-direction: column-reverse; }
       .temp-big { font-size: 52px; }
+      /* share-row: ボタン群を左寄せ・share-linkを独立行に */
+      .share-row { flex-direction: column; align-items: flex-start; gap: 12px; }
+      .share-row > div { width: 100%; }
+      .share-link { margin-left: 0; }
+      /* volume-row: スライダーを広く */
+      .volume-row { flex: 1; }
+      #volume-slider { width: 100px; }
     }
 
     /* ===== INFO TOOLTIP ===== */
