@@ -3026,7 +3026,7 @@ function initOnboarding() {
   // ===== 季節ごとのパーティクル設定 =====
   const SEASON_CFG = {
     spring: {
-      count: 32,
+      count: 16,
       colors: ['#ffb7c5', '#ff9eb5', '#ffd6e0', '#ff85a1', '#fce4ec'],
       create() {
         const c = SEASON_CFG.spring.colors;
@@ -3034,12 +3034,12 @@ function initOnboarding() {
           x: Math.random() * canvas.width,
           y: Math.random() * canvas.height,
           size: 5 + Math.random() * 8,
-          vy: 0.7 + Math.random() * 1.1,
-          vx: (Math.random() - 0.5) * 0.5,
+          vy: 0.25 + Math.random() * 0.35,
+          vx: (Math.random() - 0.5) * 0.3,
           rot: Math.random() * Math.PI * 2,
-          dRot: (Math.random() - 0.5) * 0.04,
+          dRot: (Math.random() - 0.5) * 0.02,
           swayA: 25 + Math.random() * 35,
-          swayS: 0.007 + Math.random() * 0.006,
+          swayS: 0.005 + Math.random() * 0.004,
           swayO: Math.random() * Math.PI * 2,
           color: c[Math.floor(Math.random() * c.length)],
           alpha: 0.45 + Math.random() * 0.4,
