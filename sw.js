@@ -1,5 +1,5 @@
 // ===== Luna & Elma Service Worker =====
-const CACHE_NAME = 'luna-elma-v3';
+const CACHE_NAME = 'luna-elma-v4';
 
 // TTL 設定（ミリ秒）
 const TTL_WEATHER = 10 * 60 * 1000; // 10分
@@ -13,6 +13,7 @@ const STATIC_ASSETS = [
   './config.js',
   './manifest.json',
   './supabase.js',
+  './init-sw.js',
 ];
 
 // インストール時：静的アセットをキャッシュ
@@ -59,7 +60,7 @@ self.addEventListener('fetch', event => {
                            url.hostname.includes('news.yahoo.co.jp') ||
                            url.hostname.includes('news.google.com');
             const ttl = isNews ? TTL_NEWS : TTL_WEATHER;
-            if (age < ttl) {
+            if (!isNaN(age) && age < ttl) {
               return cached; // TTL 内 → キャッシュを返す
             }
           }
