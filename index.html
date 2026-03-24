@@ -83,9 +83,10 @@
     .orb {
       position: absolute;
       border-radius: 50%;
-      filter: blur(80px);
+      filter: blur(70px);
       opacity: 0;
       transition: opacity 1.2s ease, background 1.2s ease;
+      will-change: transform;
     }
     .orb-1 { width: 600px; height: 600px; top: -200px; left: -100px; }
     .orb-2 { width: 500px; height: 500px; top: 10%; right: -150px; }
@@ -101,9 +102,10 @@
       33%      { transform: translate(-20px,18px) scale(1.03); }
       66%      { transform: translate(14px,-10px) scale(0.98); }
     }
+    /* sunPulse: box-shadow → opacity に変更（GPU負荷軽減） */
     @keyframes sunPulse {
-      0%,100% { box-shadow: 0 0 60px 20px rgba(251,191,36,0.18); }
-      50%      { box-shadow: 0 0 100px 40px rgba(251,191,36,0.32); }
+      0%,100% { opacity: 0.25; }
+      50%      { opacity: 0.38; }
     }
     @keyframes thunderFlash {
       0%,90%,100% { opacity: 0.25; }
@@ -112,9 +114,9 @@
     }
 
     body.wx-clear   .orb { opacity: 0.30; }
-    body.wx-clear   .orb-1 { background: #f59e0b; animation: orbFloat 9s ease-in-out infinite, sunPulse 4s ease-in-out infinite; }
-    body.wx-clear   .orb-2 { background: #3b82f6; animation: orbFloat2 12s ease-in-out infinite; }
-    body.wx-clear   .orb-3 { background: #6366f1; animation: orbFloat 14s ease-in-out infinite reverse; }
+    body.wx-clear   .orb-1 { background: #f59e0b; animation: orbFloat 18s ease-in-out infinite, sunPulse 7s ease-in-out infinite; }
+    body.wx-clear   .orb-2 { background: #3b82f6; animation: orbFloat2 22s ease-in-out infinite; }
+    body.wx-clear   .orb-3 { background: #6366f1; animation: orbFloat 26s ease-in-out infinite reverse; }
 
     body.wx-cloudy  .orb { opacity: 0.20; }
     body.wx-cloudy  .orb-1 { background: #64748b; animation: orbFloat 16s ease-in-out infinite; }
@@ -122,18 +124,18 @@
     body.wx-cloudy  .orb-3 { background: #475569; animation: orbFloat 20s ease-in-out infinite reverse; }
 
     body.wx-rain    .orb { opacity: 0.22; }
-    body.wx-rain    .orb-1 { background: #1d4ed8; animation: orbFloat 10s ease-in-out infinite; }
-    body.wx-rain    .orb-2 { background: #3b82f6; animation: orbFloat2 13s ease-in-out infinite; }
-    body.wx-rain    .orb-3 { background: #0ea5e9; animation: orbFloat 11s ease-in-out infinite reverse; }
+    body.wx-rain    .orb-1 { background: #1d4ed8; animation: orbFloat 22s ease-in-out infinite; }
+    body.wx-rain    .orb-2 { background: #3b82f6; animation: orbFloat2 26s ease-in-out infinite; }
+    body.wx-rain    .orb-3 { background: #0ea5e9; animation: orbFloat 24s ease-in-out infinite reverse; }
 
     body.wx-snow    .orb { opacity: 0.25; }
-    body.wx-snow    .orb-1 { background: #e0e7ff; animation: orbFloat 18s ease-in-out infinite; }
-    body.wx-snow    .orb-2 { background: #bfdbfe; animation: orbFloat2 22s ease-in-out infinite; }
-    body.wx-snow    .orb-3 { background: #a5f3fc; animation: orbFloat 15s ease-in-out infinite reverse; }
+    body.wx-snow    .orb-1 { background: #e0e7ff; animation: orbFloat 24s ease-in-out infinite; }
+    body.wx-snow    .orb-2 { background: #bfdbfe; animation: orbFloat2 28s ease-in-out infinite; }
+    body.wx-snow    .orb-3 { background: #a5f3fc; animation: orbFloat 22s ease-in-out infinite reverse; }
 
-    body.wx-thunder .orb-1 { background: #7c3aed; animation: orbFloat 8s ease-in-out infinite, thunderFlash 7s ease-in-out infinite; }
-    body.wx-thunder .orb-2 { background: #c026d3; animation: orbFloat2 10s ease-in-out infinite, thunderFlash 11s ease-in-out infinite 2s; }
-    body.wx-thunder .orb-3 { background: #4f46e5; animation: orbFloat 12s ease-in-out infinite reverse, thunderFlash 9s ease-in-out infinite 4s; }
+    body.wx-thunder .orb-1 { background: #7c3aed; animation: orbFloat 20s ease-in-out infinite, thunderFlash 7s ease-in-out infinite; }
+    body.wx-thunder .orb-2 { background: #c026d3; animation: orbFloat2 24s ease-in-out infinite, thunderFlash 11s ease-in-out infinite 2s; }
+    body.wx-thunder .orb-3 { background: #4f46e5; animation: orbFloat 28s ease-in-out infinite reverse, thunderFlash 9s ease-in-out infinite 4s; }
 
     /* ===== PARTICLES (rain/snow effect) ===== */
     #particle-canvas {
@@ -1596,6 +1598,34 @@
     .poodle-modal-prev:hover, .poodle-modal-next:hover { background: rgba(255,255,255,0.22); }
     .poodle-modal-counter {
       color: rgba(255,255,255,0.65); font-size: 13px; font-weight: 600; min-width: 60px; text-align: center;
+    }
+
+    /* ===== MOBILE PERFORMANCE ===== */
+    @media (max-width: 768px) {
+      /* orb blur: 70px → 32px（GPUの最大負荷源） */
+      .orb { filter: blur(32px) !important; }
+      /* orb サイズ縮小 */
+      .orb-1 { width: 380px; height: 380px; }
+      .orb-2 { width: 300px; height: 300px; }
+      .orb-3 { width: 250px; height: 250px; }
+      /* カード backdrop-filter を軽量化 */
+      .card, .settings-dropdown, .customize-modal, .auth-modal {
+        backdrop-filter: blur(6px) !important;
+        -webkit-backdrop-filter: blur(6px) !important;
+      }
+      /* 天気アイコンアニメーション無効（常時回転は電池消費大） */
+      body.wx-clear #weather-icon img,
+      body.wx-rain  #weather-icon img,
+      body.wx-snow  #weather-icon img,
+      body.wx-cloudy #weather-icon img,
+      body.wx-thunder #weather-icon img { animation: none !important; }
+    }
+
+    /* アクセシビリティ：動き軽減設定を尊重 */
+    @media (prefers-reduced-motion: reduce) {
+      .orb { animation: none !important; }
+      #weather-icon img { animation: none !important; }
+      * { animation-duration: 0.01ms !important; transition-duration: 0.1ms !important; }
     }
 
     /* ===== ERROR RETRY BUTTON ===== */

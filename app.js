@@ -1213,13 +1213,17 @@ function stopParticles() {
   particleCanvas.style.opacity = '0';
   particles = [];
 }
+const _isMobile = window.innerWidth < 768;
 function initParticles(type) {
   const canvas = particleCanvas;
-  pCtx = canvas.getContext('2d');
+  pCtx = canvas.getContext('2d', { alpha: true, desynchronized: true });
   canvas.width  = window.innerWidth;
   canvas.height = window.innerHeight;
   canvas.style.opacity = '0.45';
-  const count = type === 'rain' ? 120 : 60;
+  // モバイルはパーティクル数を半減
+  const count = type === 'rain'
+    ? (_isMobile ? 45 : 80)
+    : (_isMobile ? 22 : 45);
   for (let i = 0; i < count; i++) {
     if (type === 'rain') {
       particles.push({ x: Math.random()*canvas.width, y: Math.random()*canvas.height,
@@ -1232,7 +1236,14 @@ function initParticles(type) {
   }
   animParticles();
 }
-function animParticles() {
+let _particleLastTime = 0;
+const _PARTICLE_INTERVAL = _isMobile ? 50 : 33; // mobile:20fps / desktop:30fps
+function animParticles(ts = 0) {
+  if (ts - _particleLastTime < _PARTICLE_INTERVAL) {
+    particleAnim = requestAnimationFrame(animParticles);
+    return;
+  }
+  _particleLastTime = ts;
   const c = particleCanvas;
   pCtx.clearRect(0, 0, c.width, c.height);
   particles.forEach(p => {
@@ -1250,6 +1261,14 @@ function animParticles() {
   });
   particleAnim = requestAnimationFrame(animParticles);
 }
+// タブ非表示時にCanvas停止
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    if (particleAnim) { cancelAnimationFrame(particleAnim); particleAnim = null; }
+  } else if (particles.length && !particleAnim) {
+    animParticles();
+  }
+});
 window.addEventListener('resize', () => {
   particleCanvas.width  = window.innerWidth;
   particleCanvas.height = window.innerHeight;
@@ -3432,12 +3451,21 @@ function initOnboarding() {
   };
 
   const cfg = SEASON_CFG[season];
-  const particles = Array.from({ length: cfg.count }, () => cfg.create());
+  const _sMobile = window.innerWidth < 768;
+  // モバイルはパーティクル数を半減
+  const particles = Array.from({ length: _sMobile ? Math.ceil(cfg.count / 2) : cfg.count }, () => cfg.create());
 
   let t = 0;
   let raf = null;
+  let _sLastTime = 0;
+  const _S_INTERVAL = _sMobile ? 66 : 40; // mobile:15fps / desktop:25fps
 
-  function animate() {
+  function animate(ts = 0) {
+    if (ts - _sLastTime < _S_INTERVAL) {
+      raf = requestAnimationFrame(animate);
+      return;
+    }
+    _sLastTime = ts;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     t += 0.016;
     particles.forEach(p => { cfg.update(p, t); cfg.draw(p); });
