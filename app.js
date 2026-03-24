@@ -2273,6 +2273,11 @@ function attachNewsListeners(container) {
       const bmarked = isBookmarked(bmarkBtn.dataset.url);
       bmarkBtn.textContent = bmarked ? '★' : '☆';
       bmarkBtn.classList.toggle('bookmarked', bmarked);
+      // ブックマーク一覧表示中：削除されたカードを取り除く
+      if (!bmarked && container.querySelector('[data-bmark-view]')) {
+        bmarkBtn.closest('.news-card')?.remove();
+        if (!container.querySelector('.news-card')) renderBookmarkCards();
+      }
       return;
     }
     const summaryBtn = e.target.closest('.news-summary-btn');
@@ -2318,17 +2323,9 @@ function renderBookmarkCards() {
     return;
   }
   const readSet = loadReadUrls();
-  newsContainer.innerHTML = '<div class="news-grid">' + bmarks.map(a => newsCardHTML(a, false, 'ブックマーク', readSet)).join('') + '</div>';
+  // data-bmark-view でブックマーク表示中を示す（委譲ハンドラがカード除去に使用）
+  newsContainer.innerHTML = '<div class="news-grid" data-bmark-view="1">' + bmarks.map(a => newsCardHTML(a, false, 'ブックマーク', readSet)).join('') + '</div>';
   attachNewsListeners(newsContainer);
-  // ブックマーク表示時はブックマーク削除でカードを除去
-  newsContainer.querySelectorAll('.news-bmark-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      if (!isBookmarked(btn.dataset.url)) {
-        btn.closest('.news-card')?.remove();
-        if (!newsContainer.querySelector('.news-card')) renderBookmarkCards();
-      }
-    }, { capture: false });
-  });
 }
 
 function newsCardHTML(a, featured, categoryLabel, readSet) {
