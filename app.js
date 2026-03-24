@@ -3021,7 +3021,11 @@ function initOnboarding() {
     canvas.height = window.innerHeight;
   }
   resize();
-  window.addEventListener('resize', resize, { passive: true });
+  let _resizeTimer = null;
+  window.addEventListener('resize', () => {
+    if (_resizeTimer) clearTimeout(_resizeTimer);
+    _resizeTimer = setTimeout(resize, 150);
+  }, { passive: true });
 
   // ===== 季節ごとのパーティクル設定 =====
   const SEASON_CFG = {
@@ -3069,21 +3073,39 @@ function initOnboarding() {
     },
 
     summer: {
-      count: 22,
+      count: 16,
       colors: ['#ccff66', '#b8e44d', '#e0ff80', '#a5d62d'],
+      // グラジエントをパーティクル生成時に一度だけオフスクリーン Canvas にキャッシュ
+      _makeGlowCache(color, glow) {
+        const size = glow * 2 + 2;
+        const oc = document.createElement('canvas');
+        oc.width = oc.height = size;
+        const octx = oc.getContext('2d');
+        const g = octx.createRadialGradient(glow, glow, 0, glow, glow, glow);
+        g.addColorStop(0, color);
+        g.addColorStop(0.5, color + '88');
+        g.addColorStop(1, 'transparent');
+        octx.fillStyle = g;
+        octx.beginPath();
+        octx.arc(glow, glow, glow, 0, Math.PI * 2);
+        octx.fill();
+        return oc;
+      },
       create() {
         const c = SEASON_CFG.summer.colors;
+        const color = c[Math.floor(Math.random() * c.length)];
+        const glow  = 10 + Math.random() * 14;
         return {
           x: Math.random() * canvas.width,
           y: canvas.height + Math.random() * 100,
           vy: -(0.25 + Math.random() * 0.45),
           vx: (Math.random() - 0.5) * 0.35,
-          glow: 10 + Math.random() * 14,
+          glow,
           alpha: 0,
           targetAlpha: 0.35 + Math.random() * 0.45,
           fadeIn: true,
           fadeSpd: 0.006 + Math.random() * 0.008,
-          color: c[Math.floor(Math.random() * c.length)],
+          glowCache: SEASON_CFG.summer._makeGlowCache(color, glow),
         };
       },
       update(p) {
@@ -3103,20 +3125,13 @@ function initOnboarding() {
       draw(p) {
         ctx.save();
         ctx.globalAlpha = p.alpha;
-        const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.glow);
-        g.addColorStop(0, p.color);
-        g.addColorStop(0.5, p.color + '88');
-        g.addColorStop(1, 'transparent');
-        ctx.fillStyle = g;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.glow, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.drawImage(p.glowCache, p.x - p.glow - 1, p.y - p.glow - 1);
         ctx.restore();
       },
     },
 
     autumn: {
-      count: 28,
+      count: 16,
       colors: ['#ff7043', '#ff5722', '#ffa726', '#ef6c00', '#d84315', '#ffcc02'],
       create() {
         const c = SEASON_CFG.autumn.colors;
@@ -3124,12 +3139,12 @@ function initOnboarding() {
           x: Math.random() * canvas.width,
           y: Math.random() * canvas.height,
           size: 6 + Math.random() * 9,
-          vy: 0.6 + Math.random() * 1.0,
-          vx: (Math.random() - 0.5) * 0.7,
+          vy: 0.25 + Math.random() * 0.35,
+          vx: (Math.random() - 0.5) * 0.4,
           rot: Math.random() * Math.PI * 2,
-          dRot: (Math.random() - 0.5) * 0.05,
+          dRot: (Math.random() - 0.5) * 0.02,
           swayA: 18 + Math.random() * 28,
-          swayS: 0.006 + Math.random() * 0.005,
+          swayS: 0.005 + Math.random() * 0.004,
           swayO: Math.random() * Math.PI * 2,
           color: c[Math.floor(Math.random() * c.length)],
           alpha: 0.45 + Math.random() * 0.4,
@@ -3162,7 +3177,7 @@ function initOnboarding() {
     },
 
     winter: {
-      count: 48,
+      count: 24,
       colors: ['#ffffff', '#e8f4fd', '#cce5f6', '#ddeeff'],
       create() {
         const c = SEASON_CFG.winter.colors;
@@ -3170,10 +3185,10 @@ function initOnboarding() {
           x: Math.random() * canvas.width,
           y: Math.random() * canvas.height,
           size: 1.5 + Math.random() * 3.5,
-          vy: 0.4 + Math.random() * 0.7,
-          vx: (Math.random() - 0.5) * 0.35,
+          vy: 0.3 + Math.random() * 0.4,
+          vx: (Math.random() - 0.5) * 0.25,
           swayA: 12 + Math.random() * 18,
-          swayS: 0.004 + Math.random() * 0.007,
+          swayS: 0.004 + Math.random() * 0.005,
           swayO: Math.random() * Math.PI * 2,
           color: c[Math.floor(Math.random() * c.length)],
           alpha: 0.4 + Math.random() * 0.5,
@@ -3184,12 +3199,15 @@ function initOnboarding() {
         p.y += p.vy;
         if (p.y > canvas.height + 10) { p.y = -10; p.x = Math.random() * canvas.width; }
       },
+      // shadowBlur の代わりに 2重円で柔らかい輝きを表現（GPU 負荷を削減）
       draw(p) {
         ctx.save();
-        ctx.globalAlpha = p.alpha;
         ctx.fillStyle = p.color;
-        ctx.shadowColor = p.color;
-        ctx.shadowBlur = p.size * 2;
+        ctx.globalAlpha = p.alpha * 0.25;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size * 2.2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = p.alpha;
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
         ctx.fill();
