@@ -36,6 +36,9 @@
       --red: #f87171;
       --radius: 20px;
       --radius2: 14px;
+      --radius-btn: 14px;
+      --radius-chip: 999px;
+      --radius-input: 14px;
       --font: 'DM Sans', system-ui, sans-serif;
       --font-display: 'Syne', sans-serif;
       --shadow: 0 24px 64px rgba(0,0,0,0.55);
@@ -258,7 +261,7 @@
       padding: 13px 16px 13px 46px;
       background: var(--surface2);
       border: 1px solid var(--border2);
-      border-radius: 14px;
+      border-radius: var(--radius-input);
       color: var(--text);
       font-size: 15px;
       font-family: var(--font);
@@ -278,7 +281,7 @@
       left: 0; right: 0;
       background: #1e2235;
       border: 1px solid var(--border2);
-      border-radius: 12px;
+      border-radius: var(--radius-input);
       overflow: hidden;
       z-index: 100;
       display: none;
@@ -303,7 +306,7 @@
       padding: 12px 14px;
       background: var(--surface2);
       border: 1px solid var(--border2);
-      border-radius: 14px;
+      border-radius: var(--radius-input);
       color: var(--text);
       font-family: var(--font);
       font-size: 14px;
@@ -315,7 +318,7 @@
     /* ===== BUTTONS ===== */
     .btn {
       padding: 12px 18px;
-      border-radius: 14px;
+      border-radius: var(--radius-btn);
       border: 1px solid var(--border2);
       background: var(--surface2);
       color: var(--text);
@@ -342,7 +345,7 @@
     .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
     .chip {
       padding: 6px 14px;
-      border-radius: 999px;
+      border-radius: var(--radius-chip);
       border: 1px solid var(--border2);
       background: var(--surface2);
       color: var(--text2);
@@ -1882,6 +1885,81 @@
     .opt-btn:hover:not(.active) { border-color: var(--accent); }
     .customize-footer { margin-top: 8px; }
 
+    /* ===== BACKGROUND THEMES ===== */
+    .bg-theme-swatches { display: flex; gap: 8px; flex-wrap: wrap; }
+    .bg-swatch {
+      width: 44px; height: 36px; border-radius: 8px; cursor: pointer;
+      border: 3px solid transparent; transition: transform .15s, border-color .15s;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 10px; font-weight: 700; color: rgba(255,255,255,0.8); letter-spacing: 0.03em;
+    }
+    .bg-swatch:hover { transform: scale(1.1); }
+    .bg-swatch.active { border-color: var(--text); box-shadow: 0 0 0 2px var(--accent); }
+
+    /* Cosmic (default) */
+    html[data-bg-theme="cosmic"],
+    html:not([data-bg-theme]) { --bg: #07090f; }
+
+    /* Midnight */
+    html[data-bg-theme="midnight"] { --bg: #020917; }
+    html[data-bg-theme="midnight"] body.wx-clear   .orb-1 { background: #1e3a8a; }
+    html[data-bg-theme="midnight"] body.wx-clear   .orb-2 { background: #1d4ed8; }
+    html[data-bg-theme="midnight"] body.wx-clear   .orb-3 { background: #312e81; }
+    html[data-bg-theme="midnight"] body.wx-cloudy  .orb-1 { background: #1e293b; }
+    html[data-bg-theme="midnight"] body.wx-cloudy  .orb-2 { background: #334155; }
+    html[data-bg-theme="midnight"] body.wx-cloudy  .orb-3 { background: #1e3a5f; }
+    html[data-bg-theme="midnight"] body.wx-rain    .orb-1 { background: #1e3a8a; }
+    html[data-bg-theme="midnight"] body.wx-rain    .orb-2 { background: #0369a1; }
+    html[data-bg-theme="midnight"] body.wx-rain    .orb-3 { background: #164e63; }
+    html[data-bg-theme="midnight"] body.wx-snow    .orb-1 { background: #e2e8f0; }
+    html[data-bg-theme="midnight"] body.wx-snow    .orb-2 { background: #bfdbfe; }
+    html[data-bg-theme="midnight"] body.wx-snow    .orb-3 { background: #dbeafe; }
+
+    /* Aurora */
+    html[data-bg-theme="aurora"] { --bg: #030f08; }
+    html[data-bg-theme="aurora"] body.wx-clear   .orb-1 { background: #14532d; }
+    html[data-bg-theme="aurora"] body.wx-clear   .orb-2 { background: #0f766e; }
+    html[data-bg-theme="aurora"] body.wx-clear   .orb-3 { background: #4c1d95; }
+    html[data-bg-theme="aurora"] body.wx-cloudy  .orb-1 { background: #166534; }
+    html[data-bg-theme="aurora"] body.wx-cloudy  .orb-2 { background: #134e4a; }
+    html[data-bg-theme="aurora"] body.wx-cloudy  .orb-3 { background: #1e3a5f; }
+    html[data-bg-theme="aurora"] body.wx-rain    .orb-1 { background: #065f46; }
+    html[data-bg-theme="aurora"] body.wx-rain    .orb-2 { background: #0e7490; }
+    html[data-bg-theme="aurora"] body.wx-rain    .orb-3 { background: #1e3a8a; }
+    html[data-bg-theme="aurora"] body.wx-snow    .orb-1 { background: #d1fae5; }
+    html[data-bg-theme="aurora"] body.wx-snow    .orb-2 { background: #a7f3d0; }
+    html[data-bg-theme="aurora"] body.wx-snow    .orb-3 { background: #ddd6fe; }
+
+    /* Sunset */
+    html[data-bg-theme="sunset"] { --bg: #150800; }
+    html[data-bg-theme="sunset"] body.wx-clear   .orb-1 { background: #92400e; }
+    html[data-bg-theme="sunset"] body.wx-clear   .orb-2 { background: #9a3412; }
+    html[data-bg-theme="sunset"] body.wx-clear   .orb-3 { background: #831843; }
+    html[data-bg-theme="sunset"] body.wx-cloudy  .orb-1 { background: #78350f; }
+    html[data-bg-theme="sunset"] body.wx-cloudy  .orb-2 { background: #7c2d12; }
+    html[data-bg-theme="sunset"] body.wx-cloudy  .orb-3 { background: #4c1d95; }
+    html[data-bg-theme="sunset"] body.wx-rain    .orb-1 { background: #b45309; }
+    html[data-bg-theme="sunset"] body.wx-rain    .orb-2 { background: #c2410c; }
+    html[data-bg-theme="sunset"] body.wx-rain    .orb-3 { background: #9d174d; }
+    html[data-bg-theme="sunset"] body.wx-snow    .orb-1 { background: #fed7aa; }
+    html[data-bg-theme="sunset"] body.wx-snow    .orb-2 { background: #fecaca; }
+    html[data-bg-theme="sunset"] body.wx-snow    .orb-3 { background: #fbcfe8; }
+
+    /* Ocean */
+    html[data-bg-theme="ocean"] { --bg: #01111a; }
+    html[data-bg-theme="ocean"] body.wx-clear   .orb-1 { background: #164e63; }
+    html[data-bg-theme="ocean"] body.wx-clear   .orb-2 { background: #0369a1; }
+    html[data-bg-theme="ocean"] body.wx-clear   .orb-3 { background: #134e4a; }
+    html[data-bg-theme="ocean"] body.wx-cloudy  .orb-1 { background: #1e3a5f; }
+    html[data-bg-theme="ocean"] body.wx-cloudy  .orb-2 { background: #0f3460; }
+    html[data-bg-theme="ocean"] body.wx-cloudy  .orb-3 { background: #115e59; }
+    html[data-bg-theme="ocean"] body.wx-rain    .orb-1 { background: #0c4a6e; }
+    html[data-bg-theme="ocean"] body.wx-rain    .orb-2 { background: #075985; }
+    html[data-bg-theme="ocean"] body.wx-rain    .orb-3 { background: #0e7490; }
+    html[data-bg-theme="ocean"] body.wx-snow    .orb-1 { background: #cffafe; }
+    html[data-bg-theme="ocean"] body.wx-snow    .orb-2 { background: #bae6fd; }
+    html[data-bg-theme="ocean"] body.wx-snow    .orb-3 { background: #a5f3fc; }
+
   </style>
 </head>
 
@@ -1987,6 +2065,22 @@
             <button class="opt-btn" data-fontsize="sm">A 小</button>
             <button class="opt-btn active" data-fontsize="md">A 標準</button>
             <button class="opt-btn" data-fontsize="lg">A 大</button>
+          </div>
+        </div>
+
+        <div class="customize-section">
+          <div class="customize-section-label">背景テーマ</div>
+          <div class="bg-theme-swatches" id="bg-theme-swatches">
+            <button class="bg-swatch active" data-bg-theme="cosmic"
+              style="background:linear-gradient(135deg,#1e1b4b,#07090f)" title="Cosmic（標準）" aria-label="Cosmic">✦</button>
+            <button class="bg-swatch" data-bg-theme="midnight"
+              style="background:linear-gradient(135deg,#1e3a8a,#020917)" title="Midnight" aria-label="Midnight">🌙</button>
+            <button class="bg-swatch" data-bg-theme="aurora"
+              style="background:linear-gradient(135deg,#14532d,#4c1d95)" title="Aurora" aria-label="Aurora">🌌</button>
+            <button class="bg-swatch" data-bg-theme="sunset"
+              style="background:linear-gradient(135deg,#92400e,#831843)" title="Sunset" aria-label="Sunset">🌅</button>
+            <button class="bg-swatch" data-bg-theme="ocean"
+              style="background:linear-gradient(135deg,#164e63,#134e4a)" title="Ocean" aria-label="Ocean">🌊</button>
           </div>
         </div>
 
