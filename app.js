@@ -194,7 +194,7 @@ function toggleTheme() {
 }
 
 // ===== UIカスタマイズ =====
-const UI_DEFAULTS = { hue: 239, radius: 'default', fontSize: 'md' };
+const UI_DEFAULTS = { hue: 239, radius: 'default', fontSize: 'md', bgTheme: 'cosmic' };
 
 function applyUICustom(cfg) {
   const root = document.documentElement;
@@ -204,12 +204,20 @@ function applyUICustom(cfg) {
   root.style.setProperty('--accent2',     `hsl(${hue}, 82%, 72%)`);
   root.style.setProperty('--accent-dark', `hsl(${hue}, 74%, 50%)`);
   root.style.setProperty('--glow',        `0 0 40px hsl(${hue} 82% 63% / 0.18)`);
-  const RADIUS = { sharp: ['6px','4px'], default: ['20px','14px'], round: ['32px','24px'] };
-  const [r, r2] = RADIUS[cfg.radius ?? 'default'];
-  root.style.setProperty('--radius', r);
-  root.style.setProperty('--radius2', r2);
+  const RADIUS = {
+    sharp:   { r:'6px',  r2:'4px',  btn:'8px',   chip:'6px',   input:'8px'  },
+    default: { r:'20px', r2:'14px', btn:'14px',  chip:'999px', input:'14px' },
+    round:   { r:'32px', r2:'24px', btn:'999px', chip:'999px', input:'28px' }
+  };
+  const rv = RADIUS[cfg.radius ?? 'default'];
+  root.style.setProperty('--radius',       rv.r);
+  root.style.setProperty('--radius2',      rv.r2);
+  root.style.setProperty('--radius-btn',   rv.btn);
+  root.style.setProperty('--radius-chip',  rv.chip);
+  root.style.setProperty('--radius-input', rv.input);
   const FONT_SIZE = { sm: '13px', md: '15px', lg: '17px' };
   document.body.style.fontSize = FONT_SIZE[cfg.fontSize ?? 'md'];
+  root.dataset.bgTheme = cfg.bgTheme ?? 'cosmic';
 }
 function saveUICustom(cfg) {
   try { localStorage.setItem(LS.uiCustom, JSON.stringify(cfg)); } catch {}
@@ -2956,6 +2964,9 @@ function initOnboarding() {
       document.querySelectorAll('[data-fontsize]').forEach(b => {
         b.classList.toggle('active', b.dataset.fontsize === cfg.fontSize);
       });
+      document.querySelectorAll('[data-bg-theme]').forEach(b => {
+        b.classList.toggle('active', b.dataset.bgTheme === (cfg.bgTheme ?? 'cosmic'));
+      });
     }
     syncUI();
 
@@ -2985,7 +2996,9 @@ function initOnboarding() {
       const rb = e.target.closest('[data-radius]');
       if (rb) { cfg.radius = rb.dataset.radius; syncUI(); applyUICustom(cfg); saveUICustom(cfg); return; }
       const fb = e.target.closest('[data-fontsize]');
-      if (fb) { cfg.fontSize = fb.dataset.fontsize; syncUI(); applyUICustom(cfg); saveUICustom(cfg); }
+      if (fb) { cfg.fontSize = fb.dataset.fontsize; syncUI(); applyUICustom(cfg); saveUICustom(cfg); return; }
+      const bb = e.target.closest('#bg-theme-swatches [data-bg-theme]');
+      if (bb) { cfg.bgTheme = bb.dataset.bgTheme; syncUI(); applyUICustom(cfg); saveUICustom(cfg); }
     });
 
     resetBtn?.addEventListener('click', () => {
