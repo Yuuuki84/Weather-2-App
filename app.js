@@ -20,6 +20,7 @@ const LS = {
   bookmarks: 'sora_bookmarks',
   notif:     'sora_notif',
   fontSize:  'sora_font_size',
+  uiCustom:  'sora_ui_custom',
 };
 
 // ===== 人気都市（オートコンプリート候補） =====
@@ -190,6 +191,31 @@ function toggleTheme() {
   const next = cur === 'dark' ? 'light' : 'dark';
   applyTheme(next);
   sbSaveSettings({ theme: next });
+}
+
+// ===== UIカスタマイズ =====
+const UI_DEFAULTS = { hue: 239, radius: 'default', fontSize: 'md' };
+
+function applyUICustom(cfg) {
+  const root = document.documentElement;
+  const hue = cfg.hue ?? 239;
+  root.style.setProperty('--hue', hue);
+  root.style.setProperty('--accent',      `hsl(${hue}, 82%, 63%)`);
+  root.style.setProperty('--accent2',     `hsl(${hue}, 82%, 72%)`);
+  root.style.setProperty('--accent-dark', `hsl(${hue}, 74%, 50%)`);
+  root.style.setProperty('--glow',        `0 0 40px hsl(${hue} 82% 63% / 0.18)`);
+  const RADIUS = { sharp: ['6px','4px'], default: ['20px','14px'], round: ['32px','24px'] };
+  const [r, r2] = RADIUS[cfg.radius ?? 'default'];
+  root.style.setProperty('--radius', r);
+  root.style.setProperty('--radius2', r2);
+  const FONT_SIZE = { sm: '13px', md: '15px', lg: '17px' };
+  document.body.style.fontSize = FONT_SIZE[cfg.fontSize ?? 'md'];
+}
+function saveUICustom(cfg) {
+  try { localStorage.setItem(LS.uiCustom, JSON.stringify(cfg)); } catch {}
+}
+function loadUICustom() {
+  try { return JSON.parse(localStorage.getItem(LS.uiCustom) || '{}'); } catch { return {}; }
 }
 
 // ===== 単位 =====
@@ -2901,6 +2927,98 @@ function initOnboarding() {
       // zoom変更でドロップダウンがずれるため閉じる
       document.getElementById('settings-dropdown')?.classList.remove('open');
     });
+  });
+
+  // ===== UIカスタマイズ初期化 =====
+  const savedCustom = { ...UI_DEFAULTS, ...loadUICustom() };
+  applyUICustom(savedCustom);
+
+  // カスタマイズモーダル
+  (function initCustomizeModal() {
+    const backdrop  = document.getElementById('customize-backdrop');
+    const closeBtn  = document.getElementById('customize-close');
+    const hueSlider = document.getElementById('hue-slider');
+    const resetBtn  = document.getElementById('customize-reset');
+    if (!backdrop) return;
+
+    let cfg = { ...UI_DEFAULTS, ...loadUICustom() };
+
+    function syncUI() {
+      if (hueSlider) hueSlider.value = cfg.hue;
+      document.querySelectorAll('.color-swatch').forEach(s => {
+        s.classList.toggle('active', parseInt(s.dataset.hue) === cfg.hue);
+      });
+      document.querySelectorAll('[data-radius]').forEach(b => {
+        b.classList.toggle('active', b.dataset.radius === cfg.radius);
+      });
+      document.querySelectorAll('[data-fontsize]').forEach(b => {
+        b.classList.toggle('active', b.dataset.fontsize === cfg.fontSize);
+      });
+    }
+    syncUI();
+
+    function openModal() { backdrop.classList.add('show'); syncUI(); }
+    function closeModal() { backdrop.classList.remove('show'); }
+
+    ['customize-btn', 'customize-btn-mobile'].forEach(id => {
+      document.getElementById(id)?.addEventListener('click', openModal);
+    });
+    closeBtn?.addEventListener('click', closeModal);
+    backdrop.addEventListener('click', e => { if (e.target === backdrop) closeModal(); });
+
+    hueSlider?.addEventListener('input', () => {
+      cfg.hue = parseInt(hueSlider.value);
+      document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('active'));
+      applyUICustom(cfg); saveUICustom(cfg);
+    });
+
+    document.getElementById('color-swatches')?.addEventListener('click', e => {
+      const sw = e.target.closest('.color-swatch');
+      if (!sw) return;
+      cfg.hue = parseInt(sw.dataset.hue);
+      syncUI(); applyUICustom(cfg); saveUICustom(cfg);
+    });
+
+    backdrop.addEventListener('click', e => {
+      const rb = e.target.closest('[data-radius]');
+      if (rb) { cfg.radius = rb.dataset.radius; syncUI(); applyUICustom(cfg); saveUICustom(cfg); return; }
+      const fb = e.target.closest('[data-fontsize]');
+      if (fb) { cfg.fontSize = fb.dataset.fontsize; syncUI(); applyUICustom(cfg); saveUICustom(cfg); }
+    });
+
+    resetBtn?.addEventListener('click', () => {
+      cfg = { ...UI_DEFAULTS };
+      syncUI(); applyUICustom(cfg); saveUICustom(cfg);
+    });
+  })();
+
+  // ===== リップルエフェクト（全ボタン共通） =====
+  document.addEventListener('click', e => {
+    const btn = e.target.closest('.btn');
+    if (!btn) return;
+    const rect = btn.getBoundingClientRect();
+    const size = Math.max(rect.width, rect.height);
+    const el = document.createElement('span');
+    el.className = 'ripple';
+    el.style.cssText = `width:${size}px;height:${size}px;left:${e.clientX - rect.left - size/2}px;top:${e.clientY - rect.top - size/2}px`;
+    btn.appendChild(el);
+    el.addEventListener('animationend', () => el.remove(), { once: true });
+  }, { capture: true });
+
+  // ===== 検索ボタン パーティクルバースト =====
+  searchBtn?.addEventListener('click', () => {
+    const rect = searchBtn.getBoundingClientRect();
+    const cx = rect.width / 2, cy = rect.height / 2;
+    const count = 10;
+    for (let i = 0; i < count; i++) {
+      const angle = (i / count) * Math.PI * 2;
+      const dist  = 28 + Math.random() * 22;
+      const el = document.createElement('span');
+      el.className = 'search-spark';
+      el.style.cssText = `left:${cx}px;top:${cy}px;--sdx:${(Math.cos(angle)*dist).toFixed(1)}px;--sdy:${(Math.sin(angle)*dist).toFixed(1)}px`;
+      searchBtn.appendChild(el);
+      el.addEventListener('animationend', () => el.remove(), { once: true });
+    }
   });
 
   // manifest の ?action=geo / ?tab=news 対応
