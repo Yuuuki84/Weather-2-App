@@ -378,11 +378,27 @@ function updateFavBtn(city) {
 }
 
 // ===== URL共有 =====
+let _shareUrl = '';
 function setShareLink(city) {
   const u = new URL(location.href);
   u.searchParams.set('city', city);
-  const el = document.getElementById('share-link');
-  if (el) el.href = u.toString();
+  _shareUrl = u.toString();
+  const btn = document.getElementById('share-btn');
+  if (btn) btn.dataset.url = _shareUrl;
+}
+
+function showToast(msg) {
+  let toast = document.getElementById('app-toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'app-toast';
+    toast.className = 'app-toast';
+    document.body.appendChild(toast);
+  }
+  toast.textContent = msg;
+  toast.classList.add('show');
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(() => toast.classList.remove('show'), 2500);
 }
 
 // ===== AQI 大気質指数 =====
@@ -1591,23 +1607,104 @@ const POODLE_MESSAGES = {
   'wx-thunder': ['雷こわい！そばにいてね…⚡', 'ゴロゴロって聞こえる…だっこして 🫂', '外はこわいから今日はずっとおうちにいよう'],
 };
 
+// ===== POODLE LIGHTBOX =====
+let _poodleModalIdx = 0;
+
+function openPoodleModal(photo) {
+  let modal = document.getElementById('poodle-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'poodle-modal';
+    modal.className = 'poodle-modal';
+    modal.innerHTML =
+      '<div class="poodle-modal-overlay"></div>' +
+      '<div class="poodle-modal-inner">' +
+        '<button class="poodle-modal-close" title="閉じる">×</button>' +
+        '<img id="poodle-modal-img" src="" alt="Luna & Elma">' +
+        '<div class="poodle-modal-nav">' +
+          '<button class="poodle-modal-prev" title="前の写真">❮</button>' +
+          '<span class="poodle-modal-counter"></span>' +
+          '<button class="poodle-modal-next" title="次の写真">❯</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(modal);
+    modal.querySelector('.poodle-modal-overlay').addEventListener('click', closePoodleModal);
+    modal.querySelector('.poodle-modal-close').addEventListener('click', closePoodleModal);
+    modal.querySelector('.poodle-modal-prev').addEventListener('click', () => navigatePoodleModal(-1));
+    modal.querySelector('.poodle-modal-next').addEventListener('click', () => navigatePoodleModal(1));
+    document.addEventListener('keydown', e => {
+      if (!document.getElementById('poodle-modal')?.classList.contains('show')) return;
+      if (e.key === 'Escape') closePoodleModal();
+      if (e.key === 'ArrowLeft') navigatePoodleModal(-1);
+      if (e.key === 'ArrowRight') navigatePoodleModal(1);
+    });
+  }
+  _poodleModalIdx = LUNA_ELMA_PHOTOS.indexOf(photo);
+  if (_poodleModalIdx < 0) _poodleModalIdx = 0;
+  updatePoodleModalImg();
+  modal.classList.add('show');
+  document.body.style.overflow = 'hidden';
+}
+
+function updatePoodleModalImg() {
+  const img = document.getElementById('poodle-modal-img');
+  if (img) img.src = LUNA_ELMA_PHOTOS[_poodleModalIdx];
+  const counter = document.querySelector('.poodle-modal-counter');
+  if (counter) counter.textContent = (_poodleModalIdx + 1) + ' / ' + LUNA_ELMA_PHOTOS.length;
+}
+
+function navigatePoodleModal(dir) {
+  _poodleModalIdx = (_poodleModalIdx + dir + LUNA_ELMA_PHOTOS.length) % LUNA_ELMA_PHOTOS.length;
+  updatePoodleModalImg();
+}
+
+function closePoodleModal() {
+  const modal = document.getElementById('poodle-modal');
+  if (modal) modal.classList.remove('show');
+  document.body.style.overflow = '';
+}
+
 function fetchPoodleCard(wxClass) {
   const wrap = document.getElementById('poodle-card');
   if (!wrap) return;
 
   const msgs = POODLE_MESSAGES[wxClass] || POODLE_MESSAGES['wx-cloudy'];
   const msg  = msgs[Math.floor(Math.random() * msgs.length)];
-  const photo = pickPhoto();
+  const mainPhoto = pickPhoto();
+
+  // メイン以外からサムネイルを3枚選ぶ
+  const usedIdx = new Set([lastPhotoIndex]);
+  const thumbs  = [];
+  let tries = 0;
+  while (thumbs.length < 3 && tries < 60) {
+    const i = Math.floor(Math.random() * LUNA_ELMA_PHOTOS.length);
+    if (!usedIdx.has(i)) { usedIdx.add(i); thumbs.push(LUNA_ELMA_PHOTOS[i]); }
+    tries++;
+  }
 
   wrap.style.display = 'flex';
   wrap.innerHTML =
-    '<div class="poodle-img-wrap">' +
-      '<img src="' + photo + '" alt="Luna & Elma" loading="lazy">' +
+    '<div class="poodle-img-wrap" data-photo="' + mainPhoto + '" tabindex="0" title="タップで拡大">' +
+      '<img src="' + mainPhoto + '" alt="Luna & Elma" loading="lazy">' +
+      '<div class="poodle-expand-hint">🔍</div>' +
     '</div>' +
     '<div class="poodle-body">' +
       '<div class="poodle-names">Luna <span>&</span> Elma</div>' +
       '<div class="poodle-msg">' + msg + '</div>' +
+      '<div class="poodle-thumbs">' +
+        thumbs.map(p =>
+          '<div class="poodle-thumb" data-photo="' + p + '" tabindex="0" title="タップで拡大">' +
+            '<img src="' + p + '" alt="Luna & Elma" loading="lazy">' +
+          '</div>'
+        ).join('') +
+      '</div>' +
     '</div>';
+
+  wrap.querySelectorAll('[data-photo]').forEach(el => {
+    const open = () => openPoodleModal(el.dataset.photo);
+    el.addEventListener('click', open);
+    el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') open(); });
+  });
 }
 
 // 日本語都市名 → ローマ字変換テーブル（OWM は漢字クエリが不安定なため）
@@ -2433,10 +2530,16 @@ let _volSyncTimer = null;
   const pct   = saved != null ? Math.round(parseFloat(saved) * 100) : 80;
   slider.value = pct;
   label.textContent = pct + '%';
-  // ボリュームアイコンを音量に合わせる
+  // ボリュームアイコン SVG を音量に合わせて切り替え
+  const VOL_SVGS = {
+    mute: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>',
+    low:  '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>',
+    high: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>',
+  };
   const updateIcon = v => {
-    const icon = document.querySelector('.volume-icon');
-    if (icon) icon.textContent = v === 0 ? '🔇' : v < 40 ? '🔈' : v < 70 ? '🔉' : '🔊';
+    const wrap = document.getElementById('vol-icon-wrap');
+    if (!wrap) return;
+    wrap.innerHTML = v === 0 ? VOL_SVGS.mute : v < 60 ? VOL_SVGS.low : VOL_SVGS.high;
   };
   updateIcon(pct);
   slider.addEventListener('input', () => {
@@ -2506,6 +2609,23 @@ newsTabs.querySelectorAll('.news-tab').forEach(tab => {
   });
 });
 
+
+// 共有ボタン
+document.getElementById('share-btn')?.addEventListener('click', async () => {
+  const url = _shareUrl || location.href;
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: (currentCity || '') + 'の天気 - Luna & Elma', url });
+    } catch {}
+  } else {
+    try {
+      await navigator.clipboard.writeText(url);
+      showToast('✅ URLをコピーしました！');
+    } catch {
+      prompt('URLをコピーしてください:', url);
+    }
+  }
+});
 
 // 雨バナー閉じるボタン
 document.getElementById('rain-banner-close')?.addEventListener('click', () => {
