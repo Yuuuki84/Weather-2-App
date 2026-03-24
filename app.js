@@ -3058,14 +3058,16 @@ function initOnboarding() {
         // ローカルにあってクラウドにないものも含めて統合し、クラウドへ書き戻す
         // カタカナのみの文字列（旧APIが返す誤データ例:「ワカヤマシ」）を除外
         const sanitizeFavs = arr => arr.filter(c => !/^[\u30A0-\u30FF\s]+$/.test(c));
-        const cloudFavs  = sanitizeFavs(Array.isArray(s.favorites) ? s.favorites : []);
-        const localFavs  = loadFavorites();
-        const mergedFavs = [...cloudFavs, ...localFavs.filter(c => !cloudFavs.includes(c))].slice(0, 10);
-        if (mergedFavs.length) {
-          localStorage.setItem(LS.favorites, JSON.stringify(mergedFavs));
-          renderFavorites();
-          // ローカルのみにあった項目があればクラウドを更新
-          if (localFavs.some(c => !cloudFavs.includes(c))) sbSaveSettings({ favorites: mergedFavs });
+        const rawCloudFavs = Array.isArray(s.favorites) ? s.favorites : [];
+        const cloudFavs    = sanitizeFavs(rawCloudFavs);
+        const cloudWasDirty = rawCloudFavs.length !== cloudFavs.length;
+        const localFavs    = loadFavorites();
+        const mergedFavs   = [...cloudFavs, ...localFavs.filter(c => !cloudFavs.includes(c))].slice(0, 10);
+        localStorage.setItem(LS.favorites, JSON.stringify(mergedFavs));
+        renderFavorites();
+        // クラウドにない項目がローカルにある、またはサニタイズで不正データを除去した場合は Supabase を更新
+        if (cloudWasDirty || localFavs.some(c => !cloudFavs.includes(c))) {
+          sbSaveSettings({ favorites: mergedFavs });
         }
 
         // ニュース既読クラウド同期（ローカルとマージ）
