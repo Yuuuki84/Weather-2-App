@@ -197,6 +197,12 @@
       z-index: 9999;
     }
     .settings-dropdown.open { display: block; }
+    /* ボトムナビから開く場合は画面下部に表示 */
+    .settings-dropdown.from-bottom {
+      top: auto;
+      bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+      right: 12px;
+    }
     .settings-dropdown-row {
       display: flex;
       align-items: center;

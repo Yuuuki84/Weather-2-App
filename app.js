@@ -3511,11 +3511,23 @@ function initOnboarding() {
   function switchTab(tab) {
     if (!isMobile()) return;
 
-    // Settings tab → open customize modal
+    // Settings tab → open settings dropdown (unit, font, history, customize)
     if (tab === 'settings') {
-      document.getElementById('customize-backdrop')?.classList.add('open');
+      const dd = document.getElementById('settings-dropdown');
+      if (!dd) return;
+      const isOpen = dd.classList.contains('open');
+      // Close first if open, otherwise open from-bottom
+      if (isOpen) {
+        dd.classList.remove('open', 'from-bottom');
+      } else {
+        dd.classList.add('open', 'from-bottom');
+      }
       return;
     }
+
+    // Close settings dropdown when switching to other tabs
+    const dd = document.getElementById('settings-dropdown');
+    dd?.classList.remove('open', 'from-bottom');
 
     // Update nav button states
     nav.querySelectorAll('.mobile-nav-btn').forEach(btn => {
@@ -3535,7 +3547,10 @@ function initOnboarding() {
 
   // Attach click listeners
   nav.querySelectorAll('.mobile-nav-btn').forEach(btn => {
-    btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+    btn.addEventListener('click', e => {
+      e.stopPropagation(); // prevent global click listener from closing dropdown
+      switchTab(btn.dataset.tab);
+    });
   });
 
   // On resize: ensure desktop shows all panels
