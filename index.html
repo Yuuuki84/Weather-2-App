@@ -2196,6 +2196,78 @@
     html[data-bg-theme="galaxy"] body.wx-snow    .orb-2 { background: #ddd6fe; }
     html[data-bg-theme="galaxy"] body.wx-snow    .orb-3 { background: #e0e7ff; }
 
+    /* ===== LIGHT MODE: always override bg-theme dark backgrounds ===== */
+    html[data-theme="light"] { --bg: #f0f4ff; }
+    html[data-theme="light"] .orb { opacity: 0.10 !important; }
+
+    /* ===== MOBILE BOTTOM NAV ===== */
+    .mobile-bottom-nav { display: none; }
+
+    /* Tab panels: always visible on desktop */
+    .tab-panel { display: block; }
+    /* Desktop: tab-ai hidden until AI section is loaded */
+    #tab-ai { display: none; }
+    @media (min-width: 769px) {
+      #tab-ai.ai-loaded { display: block; }
+    }
+
+    @media (max-width: 768px) {
+      /* Show bottom nav */
+      .mobile-bottom-nav {
+        display: flex;
+        position: fixed;
+        bottom: 0; left: 0; right: 0;
+        z-index: 1200;
+        background: var(--surface);
+        border-top: 1px solid var(--border);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+        box-shadow: 0 -4px 20px rgba(0,0,0,0.25);
+      }
+      .mobile-nav-btn {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 10px 4px;
+        background: none;
+        border: none;
+        color: var(--text2);
+        font-family: var(--font);
+        cursor: pointer;
+        transition: color .2s, background .2s;
+        gap: 3px;
+        min-height: 56px;
+        border-radius: 0;
+        position: relative;
+      }
+      .mobile-nav-btn::before {
+        content: '';
+        position: absolute;
+        top: 0; left: 15%; right: 15%;
+        height: 2px;
+        background: var(--accent);
+        border-radius: 0 0 2px 2px;
+        transform: scaleX(0);
+        transition: transform .2s;
+      }
+      .mobile-nav-btn.active { color: var(--accent); }
+      .mobile-nav-btn.active::before { transform: scaleX(1); }
+      .nav-icon { font-size: 20px; line-height: 1; }
+      .nav-label { font-size: 10px; font-weight: 600; letter-spacing: 0.02em; }
+
+      /* Tab panel management on mobile */
+      .tab-panel { display: none; }
+      .tab-panel.active { display: block; }
+      /* #tab-ai has ID specificity — must override explicitly */
+      #tab-ai.active { display: block; }
+
+      /* Extra bottom padding to clear nav bar */
+      .wrap { padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px)); }
+    }
+
   </style>
 </head>
 
@@ -2402,6 +2474,9 @@
         </details>
       </div>
     </div>
+
+    <!-- ===== TAB: 天気 ===== -->
+    <div id="tab-weather" class="tab-panel active">
 
     <!-- Search Card -->
     <div class="card search-card">
@@ -2634,7 +2709,14 @@
         <div class="advice-grid" id="advice-grid"></div>
       </div>
 
-      <!-- AI チャット -->
+      <!-- Luna & Elma 🐩 -->
+      <div class="poodle-card" id="poodle-card"></div>
+    </div>
+
+    </div><!-- /tab-weather -->
+
+    <!-- ===== TAB: AI ===== -->
+    <div id="tab-ai" class="tab-panel">
       <div class="ai-section" id="ai-section" style="display:none;">
         <div class="ai-card">
           <div class="ai-header">
@@ -2650,12 +2732,10 @@
           </div>
         </div>
       </div>
+    </div><!-- /tab-ai -->
 
-      <!-- Luna & Elma 🐩 -->
-      <div class="poodle-card" id="poodle-card"></div>
-    </div>
-
-    <!-- News Section -->
+    <!-- ===== TAB: ニュース ===== -->
+    <div id="tab-news" class="tab-panel">
     <div class="news-section">
       <div class="section-title">
         📰 最新ニュース
@@ -2695,6 +2775,8 @@
     <div style="text-align:center;padding:24px 0 8px;font-size:12px;color:var(--text2);">
       <button id="privacy-link" style="background:none;border:none;color:var(--text2);font-size:12px;text-decoration:underline;cursor:pointer;">プライバシーポリシー</button>
     </div>
+    </div><!-- /tab-news -->
+
   </div>
 
   <!-- Privacy policy modal -->
@@ -2753,6 +2835,26 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
           integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH"
           crossorigin="anonymous"></script>
+  <!-- Mobile Bottom Navigation -->
+  <nav class="mobile-bottom-nav" id="mobile-bottom-nav" aria-label="メインナビゲーション">
+    <button class="mobile-nav-btn active" data-tab="weather" aria-label="天気">
+      <span class="nav-icon">🌤</span>
+      <span class="nav-label">天気</span>
+    </button>
+    <button class="mobile-nav-btn" data-tab="news" aria-label="ニュース">
+      <span class="nav-icon">📰</span>
+      <span class="nav-label">ニュース</span>
+    </button>
+    <button class="mobile-nav-btn" data-tab="ai" aria-label="AIチャット">
+      <span class="nav-icon">💬</span>
+      <span class="nav-label">AI</span>
+    </button>
+    <button class="mobile-nav-btn" data-tab="settings" aria-label="設定">
+      <span class="nav-icon">⚙️</span>
+      <span class="nav-label">設定</span>
+    </button>
+  </nav>
+
   <script src="config.js"></script>
   <script src="supabase.js"></script>
   <script src="app.js"></script>

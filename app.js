@@ -1497,6 +1497,8 @@ function initChatSection(data, unit) {
   };
 
   section.style.display = 'block';
+  // Show the AI tab panel (desktop: makes panel visible; mobile: tab-ai already controlled by nav)
+  document.getElementById('tab-ai')?.classList.add('ai-loaded');
 
   if (!chatListenersAttached) {
     chatListenersAttached = true;
@@ -3492,4 +3494,66 @@ function initOnboarding() {
       animate();
     }
   });
+})();
+
+/* ===== MOBILE BOTTOM NAVIGATION ===== */
+(function initMobileNav() {
+  const nav = document.getElementById('mobile-bottom-nav');
+  if (!nav) return;
+
+  const PANELS = { weather: 'tab-weather', news: 'tab-news', ai: 'tab-ai' };
+  const LS_TAB = 'sora_active_tab';
+
+  function isMobile() {
+    return window.matchMedia('(max-width: 768px)').matches;
+  }
+
+  function switchTab(tab) {
+    if (!isMobile()) return;
+
+    // Settings tab → open customize modal
+    if (tab === 'settings') {
+      document.getElementById('customize-backdrop')?.classList.add('open');
+      return;
+    }
+
+    // Update nav button states
+    nav.querySelectorAll('.mobile-nav-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.tab === tab);
+    });
+
+    // Show/hide panels
+    Object.entries(PANELS).forEach(([key, id]) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.classList.toggle('active', key === tab);
+    });
+
+    localStorage.setItem(LS_TAB, tab);
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  }
+
+  // Attach click listeners
+  nav.querySelectorAll('.mobile-nav-btn').forEach(btn => {
+    btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+  });
+
+  // On resize: ensure desktop shows all panels
+  window.addEventListener('resize', () => {
+    if (!isMobile()) {
+      Object.values(PANELS).forEach(id => {
+        document.getElementById(id)?.classList.add('active');
+      });
+    }
+  });
+
+  // Restore saved tab (mobile only)
+  const saved = isMobile() ? (localStorage.getItem(LS_TAB) || 'weather') : 'weather';
+  if (isMobile()) switchTab(saved);
+  else {
+    // Desktop: ensure all panels active
+    Object.values(PANELS).forEach(id => {
+      document.getElementById(id)?.classList.add('active');
+    });
+  }
 })();
