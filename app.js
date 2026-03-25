@@ -1220,10 +1220,10 @@ function initParticles(type) {
   canvas.width  = window.innerWidth;
   canvas.height = window.innerHeight;
   canvas.style.opacity = '0.45';
-  // モバイルはパーティクル数を半減
+  // モバイルはパーティクル数を大幅削減（発熱対策）
   const count = type === 'rain'
-    ? (_isMobile ? 45 : 80)
-    : (_isMobile ? 22 : 45);
+    ? (_isMobile ? 25 : 80)
+    : (_isMobile ? 10 : 45);
   for (let i = 0; i < count; i++) {
     if (type === 'rain') {
       particles.push({ x: Math.random()*canvas.width, y: Math.random()*canvas.height,
@@ -1237,7 +1237,7 @@ function initParticles(type) {
   animParticles();
 }
 let _particleLastTime = 0;
-const _PARTICLE_INTERVAL = _isMobile ? 50 : 33; // mobile:20fps / desktop:30fps
+const _PARTICLE_INTERVAL = _isMobile ? 80 : 33; // mobile:12fps / desktop:30fps
 function animParticles(ts = 0) {
   if (document.hidden) { particleAnim = null; return; } // タブ非表示時は停止
   if (ts - _particleLastTime < _PARTICLE_INTERVAL) {
@@ -2211,42 +2211,58 @@ function renderNewsCards(articles, categoryLabel) {
   }
 }
 
-function attachSwipeToCard(card) {
-  let startX = 0, startY = 0, moved = false, _swipeDx = 0, _swipeRaf = null;
-  card.addEventListener('touchstart', e => {
-    startX = e.touches[0].clientX;
-    startY = e.touches[0].clientY;
-    moved = false;
+// スワイプ状態をWeakMapで管理（メモリリーク防止）
+const _swipeStateMap = new WeakMap();
+
+// イベント委譲でコンテナ単位のスワイプを処理（カード個別リスナーを廃止）
+function attachSwipeDelegation(container) {
+  if (container.dataset.swipeAttached) return;
+  container.dataset.swipeAttached = '1';
+
+  container.addEventListener('touchstart', e => {
+    const card = e.target.closest('.news-card');
+    if (!card) return;
+    _swipeStateMap.set(card, {
+      startX: e.touches[0].clientX, startY: e.touches[0].clientY,
+      moved: false, dx: 0, raf: null
+    });
   }, { passive: true });
-  card.addEventListener('touchmove', e => {
-    const dx = e.touches[0].clientX - startX;
-    const dy = e.touches[0].clientY - startY;
+
+  container.addEventListener('touchmove', e => {
+    const card = e.target.closest('.news-card');
+    if (!card) return;
+    const s = _swipeStateMap.get(card);
+    if (!s) return;
+    const dx = e.touches[0].clientX - s.startX;
+    const dy = e.touches[0].clientY - s.startY;
     if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 10) {
-      moved = true;
-      _swipeDx = dx;
-      if (_swipeRaf) return;
-      _swipeRaf = requestAnimationFrame(() => {
-        _swipeRaf = null;
-        card.style.transform = 'translateX(' + (_swipeDx * 0.3) + 'px)';
-        card.classList.toggle('swipe-left',  _swipeDx < -20);
-        card.classList.toggle('swipe-right', _swipeDx > 20);
+      s.moved = true; s.dx = dx;
+      if (s.raf) return;
+      s.raf = requestAnimationFrame(() => {
+        s.raf = null;
+        card.style.transform = 'translateX(' + (s.dx * 0.3) + 'px)';
+        card.classList.toggle('swipe-left',  s.dx < -20);
+        card.classList.toggle('swipe-right', s.dx > 20);
       });
     }
   }, { passive: true });
-  card.addEventListener('touchend', e => {
-    const dx = e.changedTouches[0].clientX - startX;
-    const dy = e.changedTouches[0].clientY - startY;
+
+  container.addEventListener('touchend', e => {
+    const card = e.target.closest('.news-card');
+    if (!card) return;
+    const s = _swipeStateMap.get(card);
     card.style.transform = '';
     card.classList.remove('swipe-left', 'swipe-right');
-    if (!moved || Math.abs(dy) > Math.abs(dx) || Math.abs(dx) < 60) return;
+    _swipeStateMap.delete(card);
+    if (!s || !s.moved) return;
+    const dx = e.changedTouches[0].clientX - s.startX;
+    const dy = e.changedTouches[0].clientY - s.startY;
+    if (Math.abs(dy) > Math.abs(dx) || Math.abs(dx) < 60) return;
     const url = card.dataset.url;
     if (!url) return;
     if (dx < 0) {
-      // 左スワイプ → 既読
-      markAsRead(url);
-      card.classList.add('is-read');
+      markAsRead(url); card.classList.add('is-read');
     } else {
-      // 右スワイプ → ブックマーク
       const articleData = {
         url,
         title: card.querySelector('.news-title')?.textContent || '',
@@ -2261,12 +2277,17 @@ function attachSwipeToCard(card) {
 }
 
 function attachNewsListeners(container) {
-  // 画像エラーをキャプチャ委譲（個別リスナー不要）
+  // 同一コンテナへの重複リスナー防止（ニュース再描画のたびに呼ばれるため）
+  if (container.dataset.listenersAttached) {
+    attachSwipeDelegation(container);
+    return;
+  }
+  container.dataset.listenersAttached = '1';
+
   container.addEventListener('error', e => {
     if (e.target.matches('.news-img img')) e.target.parentElement.style.display = 'none';
   }, { capture: true });
 
-  // クリック委譲（querySelectorAll × 3 → 1 リスナー）
   container.addEventListener('click', e => {
     const bmarkBtn = e.target.closest('.news-bmark-btn');
     if (bmarkBtn) {
@@ -2275,7 +2296,6 @@ function attachNewsListeners(container) {
       const bmarked = isBookmarked(bmarkBtn.dataset.url);
       bmarkBtn.textContent = bmarked ? '★' : '☆';
       bmarkBtn.classList.toggle('bookmarked', bmarked);
-      // ブックマーク一覧表示中：削除されたカードを取り除く
       if (!bmarked && container.querySelector('[data-bmark-view]')) {
         bmarkBtn.closest('.news-card')?.remove();
         if (!container.querySelector('.news-card')) renderBookmarkCards();
@@ -2296,8 +2316,7 @@ function attachNewsListeners(container) {
     const card = e.target.closest('.news-card');
     if (card) { const h = card.dataset.url; if (!h) return; markAsRead(h); card.classList.add('is-read'); window.open(h, '_blank', 'noopener'); }
   });
-  // スワイプは引き続き個別適用
-  container.querySelectorAll('.news-card').forEach(attachSwipeToCard);
+  attachSwipeDelegation(container);
 }
 
 async function handleSummaryBtn(btn) {
@@ -2482,14 +2501,13 @@ let newsShowUnreadOnly = false;
   btn.title = 'トップへ戻る';
   btn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
   document.body.appendChild(btn);
-  let _scrollTopRaf = null;
-  window.addEventListener('scroll', () => {
-    if (_scrollTopRaf) return;
-    _scrollTopRaf = requestAnimationFrame(() => {
-      _scrollTopRaf = null;
-      btn.classList.toggle('visible', window.scrollY > 400);
-    });
-  }, { passive: true });
+  // IntersectionObserver でスクロールリスナーを排除（CPU負荷削減）
+  const sentinel = document.createElement('div');
+  sentinel.style.cssText = 'position:absolute;top:400px;height:1px;width:1px;pointer-events:none;aria-hidden:true;';
+  document.body.appendChild(sentinel);
+  new IntersectionObserver(entries => {
+    btn.classList.toggle('visible', !entries[0].isIntersecting);
+  }, { threshold: 0 }).observe(sentinel);
 })();
 
 // ===== イベントリスナー =====
@@ -3468,13 +3486,14 @@ function initOnboarding() {
 
   const cfg = SEASON_CFG[season];
   const _sMobile = window.innerWidth < 768;
-  // モバイルはパーティクル数を半減
-  const particles = Array.from({ length: _sMobile ? Math.ceil(cfg.count / 2) : cfg.count }, () => cfg.create());
+  // モバイルはパーティクル数を1/3に削減（発熱対策）
+  const _mobileCount = Math.max(3, Math.floor(cfg.count / 3));
+  const particles = Array.from({ length: _sMobile ? _mobileCount : cfg.count }, () => cfg.create());
 
   let t = 0;
   let raf = null;
   let _sLastTime = 0;
-  const _S_INTERVAL = _sMobile ? 66 : 40; // mobile:15fps / desktop:25fps
+  const _S_INTERVAL = _sMobile ? 120 : 40; // mobile:8fps / desktop:25fps
 
   function animate(ts = 0) {
     if (document.hidden) { raf = null; return; } // タブ非表示時は停止

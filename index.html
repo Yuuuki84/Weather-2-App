@@ -98,7 +98,7 @@
       opacity: 0;
       transition: opacity 1.2s ease, background 1.2s ease;
       will-change: transform;
-      contain: layout;
+      contain: layout paint;
     }
     .orb-1 { width: 600px; height: 600px; top: -200px; left: -100px; }
     .orb-2 { width: 500px; height: 500px; top: 10%; right: -150px; }
@@ -1629,10 +1629,11 @@
       .orb-1 { width: 380px; height: 380px; }
       .orb-2 { width: 300px; height: 300px; }
       .orb-3 { width: 250px; height: 250px; }
-      /* カード backdrop-filter を軽量化 */
-      .card, .settings-dropdown, .customize-modal, .auth-modal {
-        backdrop-filter: blur(6px) !important;
-        -webkit-backdrop-filter: blur(6px) !important;
+      /* モバイルではbackdrop-filterを完全除去（GPU再合成の最大負荷源） */
+      .card, .settings-dropdown, .customize-modal, .auth-modal,
+      .mobile-bottom-nav {
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
       }
       /* 天気アイコンアニメーション無効（常時回転は電池消費大） */
       body.wx-clear #weather-icon img,
