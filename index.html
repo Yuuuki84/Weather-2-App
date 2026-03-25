@@ -1635,6 +1635,16 @@
         backdrop-filter: none !important;
         -webkit-backdrop-filter: none !important;
       }
+      /* backdrop-filter除去後の可読性補填：ポップアップ系は不透明な背景色を使用 */
+      .settings-dropdown,
+      .customize-modal,
+      .auth-modal { background: #14172a !important; }
+      [data-theme="light"] .settings-dropdown,
+      [data-theme="light"] .customize-modal,
+      [data-theme="light"] .auth-modal { background: #ffffff !important; }
+      /* ボトムナビも同様に不透明化 */
+      .mobile-bottom-nav { background: #14172a !important; }
+      [data-theme="light"] .mobile-bottom-nav { background: #f4f7ff !important; }
       /* 天気アイコンアニメーション無効（常時回転は電池消費大） */
       body.wx-clear #weather-icon img,
       body.wx-rain  #weather-icon img,
