@@ -2534,7 +2534,11 @@ let _volSyncTimer = null;
 })();
 searchBtn.addEventListener('click', () => getWeatherByCity());
 cityInput.addEventListener('keydown', e => { if (e.key === 'Enter') getWeatherByCity(); });
-cityInput.addEventListener('input',  e => renderAC(e.target.value));
+let _acDebounce;
+cityInput.addEventListener('input', e => {
+  clearTimeout(_acDebounce);
+  _acDebounce = setTimeout(() => renderAC(e.target.value), 250);
+});
 cityInput.addEventListener('blur',   () => setTimeout(() => acBox.classList.remove('show'), 180));
 geoBtn.addEventListener('click', getWeatherByGeo);
 themeBtn.addEventListener('click', toggleTheme);

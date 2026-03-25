@@ -60,7 +60,18 @@
     }
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html { scroll-behavior: smooth; overflow-x: hidden; }
+    html { overflow-x: hidden; }
+    /* smooth scroll はデスクトップのみ（モバイルはジャンクの原因） */
+    @media (min-width: 769px) { html { scroll-behavior: smooth; } }
+
+    /* タップ時のハイライト除去・300msディレイ削除 */
+    button, a, [role="button"], select,
+    .chip, .chip-wrap, .news-tab, .mobile-nav-btn,
+    .news-filter-btn, .news-bmark-btn, .news-summary-btn,
+    .chip-del, .ac-item, .ob-dot {
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
 
     body {
       font-family: var(--font);
@@ -87,6 +98,7 @@
       opacity: 0;
       transition: opacity 1.2s ease, background 1.2s ease;
       will-change: transform;
+      contain: layout;
     }
     .orb-1 { width: 600px; height: 600px; top: -200px; left: -100px; }
     .orb-2 { width: 500px; height: 500px; top: 10%; right: -150px; }
@@ -620,6 +632,7 @@
       flex-wrap: nowrap;
       overflow-x: auto;
       -webkit-overflow-scrolling: touch;
+      overscroll-behavior-x: contain;
       scrollbar-width: thin;
       scrollbar-color: var(--border2) transparent;
       padding-bottom: 8px;
@@ -1282,6 +1295,8 @@
     .hourly-strip-wrap {
       overflow-x: auto; padding-bottom: 4px;
       scrollbar-width: thin; scrollbar-color: var(--border2) transparent;
+      overscroll-behavior-x: contain;
+      -webkit-overflow-scrolling: touch;
     }
     .hourly-strip { display: flex; gap: 8px; padding: 16px; min-width: max-content; }
     .hourly-item {
@@ -1625,6 +1640,52 @@
       body.wx-snow  #weather-icon img,
       body.wx-cloudy #weather-icon img,
       body.wx-thunder #weather-icon img { animation: none !important; }
+
+      /* ===== タッチターゲット拡大 (≥44px) ===== */
+      /* 検索履歴削除ボタン */
+      .chip-del {
+        min-width: 32px; min-height: 32px;
+        padding: 6px;
+        margin-left: 0;
+      }
+      /* ニュースブックマーク */
+      .news-bmark-btn {
+        padding: 10px 12px;
+        font-size: 17px;
+      }
+      /* AI 要約ボタン */
+      .news-summary-btn {
+        padding: 7px 13px;
+        font-size: 12px;
+      }
+      /* ニュースフィルターボタン */
+      .news-filter-btn {
+        padding: 8px 14px;
+        font-size: 13px;
+        min-height: 36px;
+      }
+      /* ニュースタブ */
+      .news-tab {
+        padding: 10px 16px;
+        min-height: 40px;
+      }
+
+      /* ===== ロゴ・フォントサイズ調整 ===== */
+      .logo { font-size: 22px; }
+      .logo span { font-size: 12px; }
+
+      /* ===== ニュースカード可読性 ===== */
+      .news-title { font-size: 15px; line-height: 1.55; }
+      .news-meta { font-size: 12px; }
+
+      /* ===== ヒーローカードのパディング調整 ===== */
+      .hero-card { padding: 20px; }
+
+      /* ===== スクロールコンテナの慣性スクロール ===== */
+      .hourly-strip-wrap,
+      .news-tabs { scroll-snap-type: x proximity; }
+      .hourly-item { scroll-snap-align: start; }
+      .news-tab { scroll-snap-align: start; }
     }
 
     /* アクセシビリティ：動き軽減設定を尊重 */
